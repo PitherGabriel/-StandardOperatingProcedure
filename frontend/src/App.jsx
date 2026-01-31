@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Package, AlertTriangle, Plus, Minus, Trash2, Save, Search, History, TrendingUp, Calendar, FileText, Check, X, Mail, Loader  } from 'lucide-react';
+import {
+  ShoppingCart,
+  Package,
+  AlertTriangle,
+  Plus, Minus,
+  Trash2,
+  Save,
+  Search, History,
+  TrendingUp, Calendar,
+  FileText, Check,
+  X, Mail, Loader, DollarSignIcon
+} from 'lucide-react';
 
 
 const POSSystem = () => {
@@ -8,10 +19,11 @@ const POSSystem = () => {
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [alerts, setAlerts] = useState([]);
-  const [activeTab, setActiveTab] = useState('pos'); // pos, history, summary
+  const [activeTab, setActiveTab] = useState('pos'); // pos, inventario, history, summary
   const [salesHistory, setSalesHistory] = useState([]);
   const [salesSummary, setSalesSummary] = useState(null);
   const [vendedor, setVendedor] = useState('Sistema');
+  const [receivedMoney, setReceivedMoney] = useState('');
 
   // Estados para facturación
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -243,6 +255,11 @@ const POSSystem = () => {
       return;
     }
 
+    if (parseFloat(receivedMoney) < calculateTotal()) {
+      alert('Dinero recibido es insuficiente')
+      return;
+    }
+
     try {
       const cartData = cart.map(item => ({
         codigo: item.codigo,
@@ -287,6 +304,7 @@ const POSSystem = () => {
 
         alert(message);
         setCart([]);
+        setReceivedMoney('');
         loadInventory();
       } else {
         alert('Error procesando la venta: ' + (result.error || 'Error desconocido'));
@@ -341,7 +359,10 @@ const POSSystem = () => {
     );
   }
 
-return (
+  const total = calculateTotal();
+  const vuelto = receivedMoney ? (parseFloat(receivedMoney) - total) : 0;
+
+  return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -352,26 +373,34 @@ return (
         <div className="mb-6 border-b border-gray-200">
           <div className="flex gap-4">
             <button
+              onClick={() => setActiveTab('inventario')}
+              className={`pb-2 px-4 font-medium transition ${activeTab === 'inventario'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
+            >
+              <FileText className="inline mr-2" size={18} />
+              Inventario
+            </button>
+            <button
               onClick={() => setActiveTab('pos')}
-              className={`pb-2 px-4 font-medium transition ${
-                activeTab === 'pos'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`pb-2 px-4 font-medium transition ${activeTab === 'pos'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               <ShoppingCart className="inline mr-2" size={18} />
-              Punto de Venta
+              Caja
             </button>
             <button
               onClick={() => {
                 setActiveTab('history');
                 loadSalesHistory();
               }}
-              className={`pb-2 px-4 font-medium transition ${
-                activeTab === 'history'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`pb-2 px-4 font-medium transition ${activeTab === 'history'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               <History className="inline mr-2" size={18} />
               Historial
@@ -381,22 +410,20 @@ return (
                 setActiveTab('summary');
                 loadSalesSummary();
               }}
-              className={`pb-2 px-4 font-medium transition ${
-                activeTab === 'summary'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`pb-2 px-4 font-medium transition ${activeTab === 'summary'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               <TrendingUp className="inline mr-2" size={18} />
               Resumen
             </button>
             <button
               onClick={() => setActiveTab('invoices')}
-              className={`pb-2 px-4 font-medium transition ${
-                activeTab === 'invoices'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`pb-2 px-4 font-medium transition ${activeTab === 'invoices'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               <FileText className="inline mr-2" size={18} />
               Facturas SRI
@@ -404,16 +431,16 @@ return (
           </div>
         </div>
 
-        {alerts.length > 0 && activeTab === 'pos' && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+        {alerts.length > 0 && activeTab === 'inventario' && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
             <div className="flex items-start">
-              <AlertTriangle className="text-yellow-600 mr-3 mt-0.5" size={20} />
+              <AlertTriangle className="text-red-600 mr-3 mt-0.5" size={20} />
               <div>
-                <h3 className="text-sm font-medium text-yellow-800">Alertas de Inventario Bajo</h3>
-                <div className="mt-2 text-sm text-yellow-700">
+                <h3 className="text-sm font-medium text-red-800">Alertas de Inventario Bajo</h3>
+                <div className="mt-2 text-sm text-red-700">
                   {alerts.map(item => (
                     <div key={item.id} className="mb-1">
-                      <strong>{item.nombre}</strong>: {item.cantidad} unidades 
+                      <strong>{item.nombre}</strong>: {item.cantidad} unidades
                       (mínimo: {item.minStock})
                     </div>
                   ))}
@@ -424,12 +451,12 @@ return (
         )}
 
         {activeTab === 'pos' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 h-[calc(100vh-140px)]">
+            <div className="lg:col-span-3 bg-white rounded-lg shadow p-4 flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
                   <Package size={20} />
-                  Productos Disponibles
+                  Productos
                 </h2>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -442,55 +469,55 @@ return (
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredInventory.map(product => (
-                  <div
-                    key={product.id}
-                    className={`border rounded-lg p-4 hover:shadow-md transition ${
-                      product.cantidad === 0 ? 'bg-gray-100 opacity-60' : 
-                      product.cantidad <= product.minStock ? 'border-yellow-300 bg-yellow-50' : 
-                      'border-gray-200'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-800">{product.nombre}</h3>
-                        <p className="text-sm text-gray-500">{product.codigo}</p>
-                      </div>
-                      <span className="text-lg font-bold text-blue-600">
-                        ${product.precio.toFixed(2)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center mt-3">
-                      <span className={`text-sm ${
-                        product.cantidad === 0 ? 'text-red-600 font-semibold' :
-                        product.cantidad <= product.minStock ? 'text-yellow-600 font-semibold' :
-                        'text-gray-600'
-                      }`}>
-                        Stock: {product.cantidad}
-                      </span>
-                      <button
-                        onClick={() => addToCart(product)}
-                        disabled={product.cantidad === 0}
-                        className={`px-4 py-2 rounded-lg font-medium transition ${
-                          product.cantidad === 0
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+              <div className="flex-1 overflow-y-auto">
+                {searchTerm.trim() !== "" && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {filteredInventory.map(product => (
+                      <div
+                        key={product.id}
+                        className={`border rounded-lg p-3 hover:shadow-md transition ${product.cantidad === 0 ? 'bg-gray-100 opacity-60' :
+                          product.cantidad <= product.minStock ? 'border-red-300 bg-yellow-50' :
+                            'border-gray-200'
+                          }`}
                       >
-                        Agregar
-                      </button>
-                    </div>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h3 className="font-semibold text-gray-800">{product.nombre}</h3>
+                            <p className="text-sm text-gray-500">{product.codigo}</p>
+                          </div>
+                          <span className="text-lg font-bold text-blue-600">
+                            ${product.precio.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center mt-2">
+                          <span className={`text-sm ${product.cantidad === 0 ? 'text-red-600 font-semibold' :
+                            product.cantidad <= product.minStock ? 'text-red-600 font-semibold' :
+                              'text-gray-600'
+                            }`}>
+                            Stock: {product.cantidad}
+                          </span>
+                          <button
+                            onClick={() => addToCart(product)}
+                            disabled={product.cantidad === 0}
+                            className={`px-4 py-2 rounded-lg font-medium transition ${product.cantidad === 0
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="lg:col-span-2 bg-white rounded-lg shadow p-4 flex flex-col">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Carrito de Venta</h2>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Vendedor</label>
                 <input
@@ -501,7 +528,7 @@ return (
                   placeholder="Nombre del vendedor"
                 />
               </div>
-              
+
               {cart.length === 0 ? (
                 <div className="text-center text-gray-400 py-12">
                   <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
@@ -524,7 +551,7 @@ return (
                             <Trash2 size={18} />
                           </button>
                         </div>
-                        
+
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <button
@@ -558,15 +585,35 @@ return (
                         ${calculateTotal().toFixed(2)}
                       </span>
                     </div>
-                    
+
+                    <div className="space-y-3 mb-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Dinero recibido</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={receivedMoney}
+                          onChange={(e) => setReceivedMoney(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Ej: 20.00"
+                        />
+                      </div>
+
+                      <div className="flex justify-between text-lg font-semibold">
+                        <span>Vuelto:</span>
+                        <span className={vuelto < 0 ? 'text-red-600' : 'text-green-600'}>
+                          ${vuelto.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
                     <button
                       onClick={processSale}
                       className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2 mb-2"
                     >
                       <Save size={20} />
-                      Venta Simple
+                      Vender
                     </button>
-                    
+                    {/* 
                     <button
                       onClick={() => setShowInvoiceModal(true)}
                       className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"
@@ -574,6 +621,7 @@ return (
                       <FileText size={20} />
                       Venta con Factura SRI
                     </button>
+                    */}
                   </div>
                 </>
               )}
@@ -613,7 +661,7 @@ return (
                         ${sale.total.toFixed(2)}
                       </span>
                     </div>
-                    
+
                     <div className="bg-gray-50 rounded p-3">
                       <h4 className="text-sm font-semibold text-gray-700 mb-2">Productos:</h4>
                       <div className="space-y-1">
@@ -658,21 +706,21 @@ return (
                     <p className="text-sm text-blue-600 font-medium mb-1">Fecha</p>
                     <p className="text-2xl font-bold text-blue-900">{salesSummary.date}</p>
                   </div>
-                  
+
                   <div className="bg-green-50 rounded-lg p-4">
                     <p className="text-sm text-green-600 font-medium mb-1">Total Ventas</p>
                     <p className="text-2xl font-bold text-green-900">
                       ${salesSummary.total_amount?.toFixed(2) || '0.00'}
                     </p>
                   </div>
-                  
+
                   <div className="bg-purple-50 rounded-lg p-4">
                     <p className="text-sm text-purple-600 font-medium mb-1">Núm. Ventas</p>
                     <p className="text-2xl font-bold text-purple-900">
                       {salesSummary.total_sales || 0}
                     </p>
                   </div>
-                  
+
                   <div className="bg-orange-50 rounded-lg p-4">
                     <p className="text-sm text-orange-600 font-medium mb-1">Items Vendidos</p>
                     <p className="text-2xl font-bold text-orange-900">
@@ -735,52 +783,6 @@ return (
             </div>
           </div>
         )}
-
-        {activeTab === 'pos' && (
-          <div className="mt-6 bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Inventario Actual</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Código</th>
-                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Producto</th>
-                    <th className="px-4 py-2 text-right text-sm font-semibold text-gray-700">Precio</th>
-                    <th className="px-4 py-2 text-right text-sm font-semibold text-gray-700">Stock</th>
-                    <th className="px-4 py-2 text-right text-sm font-semibold text-gray-700">Mín. Stock</th>
-                    <th className="px-4 py-2 text-center text-sm font-semibold text-gray-700">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {inventory.map(item => (
-                    <tr key={item.id} className={item.cantidad <= item.minStock ? 'bg-yellow-50' : ''}>
-                      <td className="px-4 py-3 text-sm text-gray-600">{item.codigo}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-800">{item.nombre}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">${item.precio.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-right font-semibold text-gray-800">{item.cantidad}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">{item.minStock}</td>
-                      <td className="px-4 py-3 text-center">
-                        {item.cantidad === 0 ? (
-                          <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full font-semibold">
-                            Agotado
-                          </span>
-                        ) : item.cantidad <= item.minStock ? (
-                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-semibold">
-                            Bajo
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-semibold">
-                            OK
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Modal de Facturación Electrónica */}
@@ -839,7 +841,7 @@ return (
                     type="text"
                     required
                     value={clienteData.identificacion}
-                    onChange={(e) => setClienteData({...clienteData, identificacion: e.target.value})}
+                    onChange={(e) => setClienteData({ ...clienteData, identificacion: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Ej: 1234567890 o 1234567890001"
                     disabled={processingInvoice}
@@ -857,7 +859,7 @@ return (
                     type="text"
                     required
                     value={clienteData.razon_social}
-                    onChange={(e) => setClienteData({...clienteData, razon_social: e.target.value})}
+                    onChange={(e) => setClienteData({ ...clienteData, razon_social: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Nombre completo o razón social"
                     disabled={processingInvoice}
@@ -871,7 +873,7 @@ return (
                   <input
                     type="text"
                     value={clienteData.direccion}
-                    onChange={(e) => setClienteData({...clienteData, direccion: e.target.value})}
+                    onChange={(e) => setClienteData({ ...clienteData, direccion: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Dirección completa"
                     disabled={processingInvoice}
@@ -886,7 +888,7 @@ return (
                     type="email"
                     required
                     value={clienteData.email}
-                    onChange={(e) => setClienteData({...clienteData, email: e.target.value})}
+                    onChange={(e) => setClienteData({ ...clienteData, email: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="correo@ejemplo.com"
                     disabled={processingInvoice}
@@ -903,7 +905,7 @@ return (
                   <input
                     type="tel"
                     value={clienteData.telefono}
-                    onChange={(e) => setClienteData({...clienteData, telefono: e.target.value})}
+                    onChange={(e) => setClienteData({ ...clienteData, telefono: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="0987654321"
                     disabled={processingInvoice}
