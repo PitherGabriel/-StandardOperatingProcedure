@@ -452,10 +452,10 @@ class InventoryManager:
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             # Submit both tasks receipt
-            #print_future = executor.submit(
-            #    self.printer.print_receipt, 
-            #    receipt_data
-            #)
+            print_future = executor.submit(
+                self.printer.print_receipt, 
+                receipt_data
+            )
             save_future = executor.submit(
                 self.save_sale, 
                 sale_id, 
@@ -465,15 +465,15 @@ class InventoryManager:
                 )
 
             # Wait for BOTH to complete and get results
-            #print_result = print_future.result()  # Blocks until print is done
+            print_result = print_future.result()  # Blocks until print is done
             save_result = save_future.result()    # Blocks until save is done
         
         # Both tasks are now complete - check results
-        #if not print_result['success']:
-        #    return {
-        #        'success': False,
-        #        'message': f"Error imprimiendo recibo: {print_result.get('error')}"
-        #    }
+        if not print_result['success']:
+            return {
+                'success': False,
+                'message': f"Error imprimiendo recibo: {print_result.get('error')}"
+            }
 
         if not save_result['success']:
             return {
