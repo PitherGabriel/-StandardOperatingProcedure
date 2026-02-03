@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 
 # Printer
-from escpos.printer import Network
+from escpos.printer import Network, Usb
 
 
 class ReceiptPrinter: 
@@ -15,10 +15,10 @@ class ReceiptPrinter:
         # To find IDs: lsusb (Linux) or Device Manager (Windows)
         try:
             # USB Printer
-            #self.printer = Usb(0x0416, 0x5011)  # Replace with your RPT004 IDs
+            self.printer = Usb(0x04b8, 0x0e14)  # Replace with your RPT004 IDs
             
             # OR Network Printer (if using WiFi/Ethernet)
-            self.printer = Network("192.168.1.100")
+            #self.printer = Network("192.168.1.100")
             
             # OR File Printer (for testing - prints to file)
             # self.printer = File("/dev/usb/lp0")
