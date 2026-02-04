@@ -1,36 +1,38 @@
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: pos-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - pos-network
+    restart: unless-stopped
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: pos-backend
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     environment:
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - FLASK_APP=api_server.py
-    volumes:
-      - ./backend:/app
-      - /app/__pycache__
+      - FLASK_ENV=production
     networks:
       - pos-network
     restart: unless-stopped
-    command: python api_server.py
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: pos-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - REACT_APP_API_URL=http://localhost:5000/api
-      - CHOKIDAR_USEPOLLING=true
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    expose:
+      - "80"
     depends_on:
       - backend
     networks:
