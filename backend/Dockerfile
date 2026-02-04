@@ -21,13 +21,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código de la aplicación
 COPY . .
 
-# Exponer puerto
+# Variables de entorno para produccion
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_ENV=production
+
+# Exponer port
 EXPOSE 5000
 
-# Variables de entorno para desarrollo
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_ENV=development
-ENV FLASK_DEBUG=1
 
-# Comando para ejecutar con hot-reload
-CMD ["python", "api_server.py"]
+# Run with Gunicorn (4 workers is a good default)
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "api_server:app"]

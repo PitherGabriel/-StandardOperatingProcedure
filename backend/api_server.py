@@ -2,13 +2,16 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from pos_backend import InventoryManager, ReceiptPrinter
 import secrets
+import os
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)  # Clave secreta para sesiones
 CORS(app, supports_credentials=True)  # Importante: soportar credenciales
 
+CREDS_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 
-inventory = InventoryManager('credentials.json', 'CentroComercialTB')
+
+inventory = InventoryManager(CREDS_PATH, 'CentroComercialTB')
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
