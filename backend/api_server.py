@@ -13,6 +13,7 @@ def create_app():
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax',
         SESSION_COOKIE_SECURE=False,   # change to True when HTTPS
+        SESSION_COOKIE_PATH='/',      # 👈 THIS LINE
         SESSION_PERMANENT=True,
         PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 7,  # 7 days
         SESSION_REFRESH_EACH_REQUEST=True
