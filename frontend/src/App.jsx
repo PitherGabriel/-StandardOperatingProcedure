@@ -1134,7 +1134,7 @@ const POSSystem = () => {
                               {item.cantidad}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-800">${item.precio.toFixed(2)}</td>
+                          <td className="px-6 py-4 text-sm text-gray-800">${item.precio}</td>
                           <td className="px-6 py-4 text-sm">
                             {item.cantidad === 0 ? (
                               <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">
