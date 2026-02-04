@@ -7,6 +7,7 @@ import uuid
 
 # Printer
 from escpos.printer import Network
+from decimal import Decimal, ROUND_HALF_UP
 
 class ReceiptPrinter: 
     def __init__(self):
@@ -624,14 +625,17 @@ class InventoryManager:
             
             for sale in filtered_sales:
                 codigo = sale['Codigo']
-                cantidad = int(sale['Cantidad'])
-                precio_venta = float(sale['PrecioUnitario'])
-                costo_unitario = costs_dict.get(codigo, 0)
+                cantidad = Decimal(str(sale['Cantidad']))
+                precio_venta = Decimal(str(sale['PrecioUnitario']))
+                costo_unitario = Decimal(str(costs_dict.get(codigo, 0)))
                 vendedor = sale.get('Vendedor', 'Sistema')
                 
                 ingreso = precio_venta * cantidad
                 costo = costo_unitario * cantidad
                 utilidad = ingreso - costo
+                
+                utilidad = utilidad.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
                 
                 total_ingresos += ingreso
                 total_costos += costo
