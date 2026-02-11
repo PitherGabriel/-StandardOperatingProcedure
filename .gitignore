@@ -207,10 +207,9 @@ marimo/_lsp/
 __marimo__/
 
 # Python
-backend/create_admin.py
+backend/create_user.py
 
 # Secrets
 secrets/
-
-# Personal documentation
 certificado.p12
+
