@@ -308,8 +308,6 @@ class InventoryManager:
             cell = self.sheet_inventory.find(product_code)
             row = cell.row
             
-            print("No product")
-
             # Obtener datos del producto
             product_id = self.sheet_inventory.cell(row, 1).value
             product_name = self.sheet_inventory.cell(row, 3).value
@@ -319,11 +317,8 @@ class InventoryManager:
             price_2 = float(self.sheet_inventory.cell(row, 8).value)
             min_stock = float(self.sheet_inventory.cell(row, 9).value)
             quantity_sold = float(quantity_sold)
-
-            print("Datos obtenidos")
             
             if unidad == "unidad" and not quantity_sold.is_integer():
-                print("Unidad is not integer")
                 return {
                     'success': False,
                     'error': 'Este producto solo se puede vender en unidades enteras'
@@ -331,14 +326,13 @@ class InventoryManager:
 
             # Verificar si hay suficiente stock
             if current_qty < quantity_sold:
-                print("Datos obtenidos")
                 return {
                     'success': False,
                     'error': 'Stock insuficiente'
                 }
             
             # Calcular nueva cantidad
-            new_qty = round(current_qty - quantity_sold, 3)
+            new_qty = round(current_qty - quantity_sold, 2)
             
             # Actualizar en la hoja
             self.sheet_inventory.update_cell(row, 4, new_qty)
@@ -356,9 +350,8 @@ class InventoryManager:
             else:
                 selected_price = price_1
             
-            print("Se ha actualizado el stock")
+            print("Stock actualizado correctamente")
 
-     
             return {
                     'success': True,
                     'product_id': product_id,
@@ -376,8 +369,11 @@ class InventoryManager:
                 'error': str(e)
             }
         
-    def save_sale(self, sale_id, cart_items, total, vendedor='Sistema'):
+    def save_sale(self, sale_id, sale_details, total, vendedor='Sistema'):
         """Guarda el detalle de la venta en la hoja de Ventas"""
+
+        print("Guardando venta...")
+
         try:
             now = datetime.now(BUSINESS_TZ)
             fecha = now.strftime('%Y-%m-%d')
@@ -385,7 +381,7 @@ class InventoryManager:
             
             # Preparar filas para insertar
             rows = []
-            for item in cart_items:
+            for item in sale_details:
                 row = [
                     sale_id,
                     fecha,
@@ -400,9 +396,13 @@ class InventoryManager:
                     vendedor
                 ]
                 rows.append(row)
+            
             print(f'Filas para insertar: {rows}')
+
             # Insertar todas las filas de la venta
             self.sheet_sales.append_rows(rows)
+            
+            print("Venta guardada correctamente")
             
             return {
                 'success': True,
@@ -428,7 +428,7 @@ class InventoryManager:
         
         # Procesar cada producto        
         for item in cart_items:
-            print(f"Processing {item['codigo']}")
+            print(f"Precesando item: {item['codigo']}")
 
             result = self.update_stock(
                 item['codigo'],
@@ -465,53 +465,9 @@ class InventoryManager:
                     'cantidad_restante': result['new_quantity']
                 })
 
-        print(f"Sales details: {sale_details}")
+        print(f"Detalles de compra: {sale_details}")
         
-        # Prepare receipt data
-        receipt_data = {
-            'business': {
-                'name': 'COMERCIAL TB',
-                'address': 'Loja-San Lucas Av. Panamericana ',
-                'RUC': 'RUC: 1102762885001'
-            },
-            'sale': {
-                'id': sale_id,
-                'fecha': datetime.now().strftime('%d/%m/%Y'),
-                'hora': datetime.now().strftime('%H:%M:%S'),
-                'vendedor': vendedor
-            },
-            'items': cart_items,
-            'totals': {
-                'total': total_sale,
-            }
-        }
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            # Submit both tasks receipt
-            #print_future = executor.submit(
-            #    self.printer.print_receipt, 
-            #    receipt_data
-            #)
-            save_future = executor.submit(
-                self.save_sale, 
-                sale_id, 
-                sale_details, 
-                total_sale, 
-                vendedor
-                )
-
-            # Wait for BOTH to complete and get results
-            #print_result = print_future.result()  # Blocks until print is done
-            save_result = save_future.result()    # Blocks until save is done
-        
-        
-        # Both tasks are now complete - check results
-        #print("Both tasks have ended")
-        #if not print_result['success']:
-        #    return {
-        #        'success': False,
-        #        'message': f"Error imprimiendo recibo: {print_result.get('error')}"
-        #    }
+        save_result = self.save_sale(sale_id, sale_details, total_sale, vendedor)
 
         if not save_result['success']:
             return {
@@ -776,11 +732,11 @@ if __name__ == "__main__":
     resultado = inventory.process_sale(venta)
     
     if resultado['success']:
-        print("✅ Venta procesada exitosamente")
+        print("Venta procesada exitosamente")
         
         if resultado['alerts']:
-            print("\n⚠️ ALERTAS DE STOCK BAJO:")
+            print("\nALERTAS DE STOCK BAJO:")
             for alert in resultado['alerts']:
                 print(f"  - {alert['producto']}: {alert['cantidad_restante']} unidades")
     else:
-        print("❌ Error procesando la venta")
+        print(" Error procesando la venta")

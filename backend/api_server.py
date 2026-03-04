@@ -202,9 +202,13 @@ def create_app():
     @app.route('/api/sale', methods=['POST'])
     def process_sale():
         """Procesar una venta"""
+        print("Procesando venta")
+
         try:
             cart = request.json.get('cart', [])
-            print(cart)
+
+            print(f"Carrito de compra : {cart}")
+
             vendedor = request.json.get('vendedor', 'Sistema')
 
             result =  inventory.process_sale(cart, vendedor)
