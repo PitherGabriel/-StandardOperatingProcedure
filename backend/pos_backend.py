@@ -259,9 +259,9 @@ class InventoryManager:
                 product_data['costo'],
                 product_data['precio_1'],
                 product_data['precio_2'],
+                product_data['precio_3'],
                 product_data['minStock'],
                 ultima_actualizacion,
-
             ]
             
             print(f'Producto para insertar: {row}')
@@ -315,10 +315,15 @@ class InventoryManager:
             unidad = self.sheet_inventory.cell(row, 5).value.lower()
             price_1 = float(self.sheet_inventory.cell(row, 7).value)
             price_2 = float(self.sheet_inventory.cell(row, 8).value)
-            min_stock = float(self.sheet_inventory.cell(row, 9).value)
+            price_3 = float(self.sheet_inventory.cell(row, 9).value)
+            min_stock = float(self.sheet_inventory.cell(row, 10).value)
             quantity_sold = float(quantity_sold)
+
+            print("Datos del producto obtenido")
+
             
             if unidad == "unidad" and not quantity_sold.is_integer():
+                print("Este producto solo se puede vender en unidades enteras")
                 return {
                     'success': False,
                     'error': 'Este producto solo se puede vender en unidades enteras'
@@ -326,6 +331,8 @@ class InventoryManager:
 
             # Verificar si hay suficiente stock
             if current_qty < quantity_sold:
+                print("Este producto no tiene stock suficiente")
+
                 return {
                     'success': False,
                     'error': 'Stock insuficiente'
@@ -339,14 +346,16 @@ class InventoryManager:
             
             # Actualizar timestamp
             timestamp = datetime.now(BUSINESS_TZ).strftime('%Y-%m-%d %H:%M:%S')
-            self.sheet_inventory.update_cell(row, 10, timestamp)
+            self.sheet_inventory.update_cell(row, 11, timestamp)
             
             # Verificar si requiere alerta
             alert = new_qty <= min_stock
 
-            # Verificar precio
+            # Verificar el tipo de precio
             if price_type == "precio_2":
                 selected_price = price_2
+            elif price_type == "precio_3":
+                selected_price = price_3
             else:
                 selected_price = price_1
             
@@ -379,7 +388,6 @@ class InventoryManager:
             fecha = now.strftime('%Y-%m-%d')
             hora = now.strftime('%H:%M:%S')
             
-            # Preparar filas para insertar
             rows = []
             for item in sale_details:
                 row = [
@@ -391,19 +399,19 @@ class InventoryManager:
                     item['product_name'],
                     item['quantity_sold'],
                     item['price'],
-                    item['price'] * item['quantity_sold'],  # Subtotal
-                    total,
-                    vendedor
+                    round(item['price'] * item['quantity_sold'], 2), # Subtotal
+                    round(total,2),                                  # Total
+                    vendedor                                         # Vendedor
                 ]
                 rows.append(row)
             
             print(f'Filas para insertar: {rows}')
 
             # Insertar todas las filas de la venta
-            self.sheet_sales.append_rows(rows)
+            self.sheet_sales.append_rows(rows, value_input_option='USER_ENTERED')
             
             print("Venta guardada correctamente")
-            
+
             return {
                 'success': True,
                 'sale_id': sale_id,
@@ -562,59 +570,110 @@ class InventoryManager:
             from datetime import datetime, timedelta
             
             # Obtener ventas e inventario
-            sales = self.sheet_sales.get_all_records()
-            inventory = self.sheet_inventory.get_all_records()
-
-            print(sales)
-            print(inventory)
+            #sales = self.sheet_sales.get_all_records()
+            #inventory = self.sheet_inventory.get_all_records()
             
             # Diccionario de costos
-            costs_dict = {item['Codigo']: float(item.get('Costo', 0)) for item in inventory}
+            #costs_dict = {item['Codigo']: float(item.get('Costo', 0)) for item in inventory}
             
             # Determinar rango de fechas según período
             now = datetime.now(BUSINESS_TZ)
             
             if period == 'today':
-                start_date = now.replace(hour=0, minute=0, second=0)
-                end_date = now.replace(hour=23, minute=59, second=59)
+                print("Filtrando ventas de hoy")
+                start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"Hoy - {now.strftime('%d/%m/%Y')}"
                 
             elif period == 'week':
                 # Inicio de semana (lunes)
+                print("Filtrando ventas de la semana")
                 start_date = now - timedelta(days=now.weekday())
                 start_date = start_date.replace(hour=0, minute=0, second=0)
-                end_date = now.replace(hour=23, minute=59, second=59)
+                end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"Esta Semana ({start_date.strftime('%d/%m')} - {end_date.strftime('%d/%m/%Y')})"
                 
             elif period == 'month':
                 # Inicio de mes
-                start_date = now.replace(day=1, hour=0, minute=0, second=0)
-                end_date = now.replace(hour=23, minute=59, second=59)
+                print("Filtrando ventas del mes")
+                start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"Este Mes - {now.strftime('%B %Y')}"
                 
             elif period == 'custom' and custom_start and custom_end:
-                start_date = datetime.strptime(custom_start, '%Y-%m-%d')
-                end_date = datetime.strptime(custom_end, '%Y-%m-%d')
+                print("Filtrando ventas en rango personalizado")
+                start_date = datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
+                end_date = datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=BUSINESS_TZ)
                 end_date = end_date.replace(hour=23, minute=59, second=59)
                 period_label = f"{start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}"
             else:
                 return {'success': False, 'error': 'Período no válido'}
             
-            # Filtrar ventas por período
-            filtered_sales = []
-            for sale in sales:
+
+            # Fetch only date column to find matching rows
+            date_col = self.sheet_sales.col_values(2)[1:]  # skip header
+            headers = self.sheet_sales.row_values(1)
+
+            # Find matching row indices
+            matching_rows = []
+            for i, date_str in enumerate(date_col):
                 try:
-                    sale_datetime = datetime.strptime(
-                        f"{sale['Fecha']} {sale['Hora']}",
-                        '%Y-%m-%d %H:%M:%S'
-                    ).replace(tzinfo=BUSINESS_TZ)
-                    
-                    if start_date <= sale_datetime <= end_date:
-                        filtered_sales.append(sale)
+                    sale_date = datetime.strptime(date_str, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
+                    if start_date.date() <= sale_date.date() <= end_date.date():
+                        matching_rows.append(i + 2)  # +2: 1-indexed + skip header
                 except:
                     continue
-            print("filtered sales")
-            print(filtered_sales)
+
+            if not matching_rows:
+                return {
+                    'success': True,
+                    'data': {
+                        'periodo': period_label,
+                        'total_ingresos': 0,
+                        'total_costos': 0,
+                        'utilidad_neta': 0,
+                        'margen_total': 0,
+                        'total_ventas': 0,
+                        'total_unidades': 0,
+                        'ticket_promedio': 0,
+                        'productos_vendidos': [],
+                        'vendedores': [],
+                        'ventas_detalle': []
+                    }
+                }
+            
+            #print(f"Headers: {headers}")
+            #print(f"First 5 dates in column: {date_col[:5]}")
+            #print(f"Total rows in date col: {len(date_col)}")
+            #print(f"Looking for dates between {start_date.date()} and {end_date.date()}")
+            #print(f"Matching rows found: {matching_rows}")
+
+            # Fetch only matching rows in one batch call
+            col_letter = chr(64 + len(headers))
+            sheet_name = self.sheet_sales.title  # 'Ventas'
+            ranges = [f"'{sheet_name}'!A{row}:{col_letter}{row}" for row in matching_rows]            
+            
+            #print(f"Col letter: {col_letter}")
+            #print(f"First range: {ranges[0]}")
+            #print(f"Total ranges: {len(ranges)}")
+
+            batch_data = self.sheet_sales.spreadsheet.values_batch_get(ranges)
+
+            #print(f"Batch response keys: {batch_data.keys()}")
+            #print(f"ValueRanges count: {len(batch_data.get('valueRanges', []))}")
+            #print(f"First valueRange: {batch_data.get('valueRanges', [])[0] if batch_data.get('valueRanges') else 'EMPTY'}")
+                                
+            # Build records from batch response
+            filtered_sales = []
+            for value_range in batch_data.get('valueRanges', []):
+                values = value_range.get('values', [])
+                if values:
+                    record = dict(zip(headers, values[0]))
+                    filtered_sales.append(record)
+
+            # Fetch inventory for costs
+            inventory = self.sheet_inventory.get_all_records()
+            costs_dict = {item['Codigo']: float(item.get('Costo', 0)) for item in inventory}
 
             # Calcular totales
             total_ingresos = Decimal("0.000")
@@ -625,46 +684,45 @@ class InventoryManager:
             vendedores_stats = {}
             
             for sale in filtered_sales:
-                codigo = sale['Codigo']
-                cantidad = Decimal(str(sale['Cantidad']))
-                precio_venta = Decimal(str(sale['PrecioUnitario']))
+                codigo = sale.get('Codigo', '')
+                cantidad = Decimal(str(sale.get('Cantidad', 0)))
+                precio_venta = Decimal(str(sale.get('PrecioUnitario', 0)))
                 costo_unitario = Decimal(str(costs_dict.get(codigo, 0)))
                 vendedor = sale.get('Vendedor', 'Sistema')
                 
                 ingreso = (precio_venta * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
                 costo = (costo_unitario * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
-                utilidad = (ingreso - costo).quantize(Decimal("0.001"), ROUND_HALF_UP)
-                
+                utilidad = (ingreso - costo).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    
                 utilidad = utilidad.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-                
                 total_ingresos += ingreso
                 total_costos += costo
                 total_unidades += cantidad
-                
+
                 # Detalle de venta
                 ventas_detalle.append({
-                    'fecha': sale['Fecha'],
-                    'hora': sale['Hora'],
-                    'producto': sale['Nombre'],
-                    'cantidad': cantidad,
-                    'precio_venta': precio_venta,
-                    'costo_unitario': costo_unitario,
-                    'ingreso': ingreso,
-                    'costo': costo,
-                    'utilidad': utilidad,
+                    'fecha': sale.get('Fecha', ''),
+                    'hora': sale.get('Hora', ''),
+                    'producto': sale.get('Nombre', ''),
+                    'cantidad': float(cantidad),
+                    'precio_venta': float(precio_venta),
+                    'costo_unitario': float(costo_unitario),
+                    'ingreso': float(ingreso),
+                    'costo': float(costo),
+                    'utilidad': float(utilidad),
                     'vendedor': vendedor
                 })
                 
                 # Agrupar por producto
                 if codigo not in productos_vendidos:
                     productos_vendidos[codigo] = {
-                        'producto': sale['Nombre'],
+                        'producto': sale.get('Nombre', ''),
                         'codigo': codigo,
-                        'cantidad': 0,
-                        'ingresos': 0,
-                        'costos': 0,
-                        'utilidad': 0
+                        'cantidad': Decimal("0"),
+                        'ingresos': Decimal("0"),
+                        'costos': Decimal("0"),
+                        'utilidad': Decimal("0")
                     }
                 productos_vendidos[codigo]['cantidad'] += cantidad
                 productos_vendidos[codigo]['ingresos'] += ingreso
@@ -676,32 +734,52 @@ class InventoryManager:
                     vendedores_stats[vendedor] = {
                         'vendedor': vendedor,
                         'ventas': 0,
-                        'ingresos': 0,
-                        'utilidad': 0
+                        'ingresos': Decimal("0"),
+                        'utilidad': Decimal("0")
                     }
                 vendedores_stats[vendedor]['ventas'] += 1
                 vendedores_stats[vendedor]['ingresos'] += ingreso
                 vendedores_stats[vendedor]['utilidad'] += utilidad
             
-            utilidad_neta = (total_ingresos - total_costos).quantize(Decimal("0.001"), ROUND_HALF_UP)
-            margen_total = ((utilidad_neta / total_ingresos * 100)).quantize(Decimal("0.001"), ROUND_HALF_UP)if total_ingresos > 0 else Decimal("0.000")
+            utilidad_neta = (total_ingresos - total_costos).quantize(Decimal("0.01"), ROUND_HALF_UP)
+            margen_total = ((utilidad_neta / total_ingresos * 100)).quantize(Decimal("0.01"), ROUND_HALF_UP)if total_ingresos > 0 else Decimal("0.00")
             
             # Convertir diccionarios a listas y ordenar
-            productos_list = sorted(productos_vendidos.values(), key=lambda x: x['utilidad'], reverse=True)
-            vendedores_list = sorted(vendedores_stats.values(), key=lambda x: x['ingresos'], reverse=True)
-            
+            productos_list = sorted(
+                [{
+                    **p,
+                    'cantidad': float(p['cantidad']),
+                    'ingresos': float(p['ingresos']),
+                    'costos': float(p['costos']),
+                    'utilidad': float(p['utilidad'])
+                } for p in productos_vendidos.values()],
+                key=lambda x: x['utilidad'],
+                reverse=True
+            )[:10]  # Top 10
+
+            vendedores_list = sorted(
+                [{
+                    **v,
+                    'ingresos': float(v['ingresos']),
+                    'utilidad': float(v['utilidad'])
+                } for v in vendedores_stats.values()],
+                key=lambda x: x['ingresos'],
+                reverse=True
+            )
+
+            print("Analis finalizado existosamente")                        
             return {
                 'success': True,
                 'data': {
                     'periodo': period_label,
-                    'total_ingresos': round(total_ingresos, 2),
-                    'total_costos': round(total_costos, 2),
-                    'utilidad_neta': round(utilidad_neta, 2),
-                    'margen_total': round(margen_total, 2),
+                    'total_ingresos': float(round(total_ingresos, 2)),
+                    'total_costos': float(round(total_costos, 2)),
+                    'utilidad_neta': float(round(utilidad_neta, 2)),
+                    'margen_total': float(round(margen_total, 2)),
                     'total_ventas': len(filtered_sales),
-                    'total_unidades': total_unidades,
-                    'ticket_promedio': round(total_ingresos / len(filtered_sales), 2) if filtered_sales else 0,
-                    'productos_vendidos': productos_list[:10],  # Top 10
+                    'total_unidades': float(total_unidades),
+                    'ticket_promedio': float(round(total_ingresos / len(filtered_sales), 2)) if filtered_sales else 0,
+                    'productos_vendidos': productos_list,
                     'vendedores': vendedores_list,
                     'ventas_detalle': ventas_detalle
                 }

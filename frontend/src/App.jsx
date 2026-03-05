@@ -50,6 +50,7 @@ const LoginScreen = ({
             onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Ingrese su usuario"
+            autoComplete="username"
             disabled={isLoggingIn}
           />
         </div>
@@ -64,6 +65,7 @@ const LoginScreen = ({
             value={loginForm.password}
             onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autocomplete="current-password"
             placeholder="Ingrese su contraseña"
             disabled={isLoggingIn}
           />
@@ -116,10 +118,16 @@ const POSSystem = () => {
   // Estados para nuevo producto
   const [newProduct, setNewProduct] = useState({
     nombre: '',
+    codigo: '',
     costo: '',
-    porcentajeGanancia: '',
+    unidad: '',
+    precio1: '',
+    precio2: '',
+    precio3: '',
     cantidad: '',
-    minStock: ''
+    minStock: '',
+    hasPrecio2: false,
+    hasPrecio3: false
   });
 
   // Estados para filtros de historial
@@ -162,6 +170,13 @@ const POSSystem = () => {
     setAlerts(lowStock);
   }, [inventory]);
 
+  // Codigo de nuevo producto
+  useEffect(() => {
+    if (newProduct.nombre) {
+      setNewProduct(prev => ({ ...prev, codigo: generateProductCode(prev.nombre) }));
+    }
+  }, [newProduct.nombre]);
+
   // Notificaciones
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -198,11 +213,12 @@ const POSSystem = () => {
           unidad: item.Unidad,
           precio: parseFloat(item.Precio_1),
           precio_2: parseFloat(item.Precio_2),
+          precio_3: parseFloat(item.Precio_3),
           costo: parseFloat(item.Costo || 0),
           minStock: item.MinStock,
           codigo: item.Codigo
         }));
-        console.log(formattedInventory)
+        //console.log(formattedInventory)
         setInventory(formattedInventory);
       }
       setIsLoading(false);
@@ -214,10 +230,10 @@ const POSSystem = () => {
 
   const loadSalesHistory = async (limit = 50) => {
     try {
-      console.log("History requested")
+      //console.log("History requested")
       const response = await fetch(`${API_URL}/sales/history?limit=${limit}`);
       const data = await response.json();
-      console.log(data)
+      //console.log(data)
       if (data.success) {
         setSalesHistory(data.data);
       }
@@ -265,27 +281,25 @@ const POSSystem = () => {
 
   // Agregar nuevo producto
   const addNewProduct = async () => {
-    if (!newProduct.nombre || !newProduct.costo || !newProduct.porcentajeGanancia) {
-      showNotification('Por favor complete los campos obligatorios: Nombre, Costo y Porcentaje de Ganancia', 'error');
+    if (!newProduct.nombre || !newProduct.costo || !newProduct.precio1) {
+      showNotification('Por favor complete los campos obligatorios: Nombre, Costo y Precio', 'error');
       return;
     }
 
     try {
-      const codigo = generateProductCode(newProduct.nombre);
-      const precioVenta = calculateSalePrice(newProduct.costo, newProduct.porcentajeGanancia);
-      const precioVenta2 = newProduct.hasPrecio2 && newProduct.porcentajeGanancia2
-        ? calculateSalePrice(newProduct.costo, newProduct.porcentajeGanancia2)
-        : null;
 
       const productData = {
-        codigo: codigo,
+        codigo: newProduct.codigo || generateProductCode(newProduct.nombre),
         nombre: newProduct.nombre,
-        cantidad: parseInt(newProduct.cantidad) || 0,
+        cantidad: newProduct.unidad === 'unidad'
+          ? parseInt(newProduct.cantidad) || 0
+          : parseFloat(newProduct.cantidad) || 0.0,
         costo: parseFloat(newProduct.costo),
-        precio_1: parseFloat(precioVenta),
-        precio_2: precioVenta2 ? parseFloat(precioVenta2) : null,
-        minStock: parseInt(newProduct.minStock) || 5,
-        unidad: newProduct.unidad || 'unidad'
+        precio_1: parseFloat(newProduct.precio1),
+        precio_2: newProduct.precio2 ? parseFloat(newProduct.precio2) : 0.0,
+        precio_3: newProduct.precio3 ? parseFloat(newProduct.precio3) : 0.0,
+        minStock: parseInt(newProduct.minStock) || 0,
+        unidad: newProduct.unidad || 'unidad',
       };
 
       const response = await fetch(`${API_URL}/inventory/add`, {
@@ -299,30 +313,33 @@ const POSSystem = () => {
       const result = await response.json();
 
       if (result.success) {
-        showNotification(`Producto agregado exitosamente!\nCódigo: ${codigo}`, 'success');
+        showNotification(`Producto agregado exitosamente!\nCódigo: ${newProduct.codigo}`, 'success');
         setNewProduct({
           nombre: '',
+          codigo: '',
           costo: '',
-          porcentajeGanancia: '',
+          precio1: '',
+          precio2: '',
+          precio3: '',
           cantidad: '',
           minStock: '',
           unidad: 'unidad',
-          hasPrecio2: false
+          hasPrecio2: false,
+          hasPrecio3: false
         });
         loadInventory();
       } else {
-        alert('Error al agregar producto: ' + result.message);
+        showNotification(`Error al agregar producto: ${result.message}`, 'error');
       }
     } catch (error) {
       console.error('Error agregando producto:', error);
-      alert('Error al agregar producto');
+      showNotification(`Error al agregar producto: ${error}`, 'error');
     }
   };
 
   // Agregar producto al carrito
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.id === product.id);
-    console.log(product.unidad)
 
     if (product.cantidad === 0) {
       alert('¡Producto sin stock!');
@@ -574,7 +591,7 @@ const POSSystem = () => {
         codigo: item.codigo,
         cantidad_vendida: item.cantidadVendida,
         nombre: item.nombre,
-        precio: item.precio,
+        precio: item.precioActual || item.precio,
         tipoPrecio: item.priceType
       }));
 
@@ -609,6 +626,10 @@ const POSSystem = () => {
         setReceivedMoney('');
 
       }
+      else {
+        showNotification(result.error, 'error');
+      }
+
     } catch (error) {
       console.error('Error procesando venta:', error);
       showNotification('Error al procesar la venta', 'error');
@@ -617,13 +638,14 @@ const POSSystem = () => {
     }
   };
 
-const calculateTotal = () => {
-  return cart.reduce(
-    (sum, item) =>
-      sum + (item.precioActual ?? item.precio) * item.cantidadVendida,
-    0
-  )
-}
+  const calculateTotal = () => {
+    return cart.reduce(
+      (sum, item) =>
+        sum + (item.precioActual ?? item.precio) * item.cantidadVendida,
+      0
+    )
+  }
+
   const calculateChange = () => {
     const total = calculateTotal();
     const received = parseFloat(receivedMoney) || 0;
@@ -919,11 +941,11 @@ const calculateTotal = () => {
                             </h3>
                             <p className="text-xs text-gray-500 truncate">{product.codigo}</p>
                             <p className="text-sm font-bold text-[#008cc8] mt-1">
-                              ${product.precio.toFixed(2)}
+                              ${product.precio.toFixed(3)}
                             </p>
                             <p className={`text-xs mt-1 ${product.cantidad === 0 ? 'text-red-600' : 'text-gray-600'
                               }`}>
-                              Stock: {product.cantidad} {product.unidad}
+                              Stock: {product.unidad == 'unidad' ? product.cantidad : product.cantidad.toFixed(2)} {product.unidad}
                             </p>
                           </div>
                         ))}
@@ -990,35 +1012,31 @@ const calculateTotal = () => {
                                 {/* Price - 3 columns */}
                                 <div className="col-span-3 flex flex-col items-center justify-center gap-1">
                                   {hasTwoPrices ? (
-                                    <div className="flex flex-col gap-1 w-full">
-                                      {/* Price toggle buttons */}
-                                      <div className="flex gap-1 bg-gray-200 p-1 rounded-lg">
-                                        <button
-                                          onClick={() => changePriceType(item.id, 'precio')}
-                                          className={`flex-1 px-2 py-1 text-xs font-semibold rounded transition-all ${(item.priceType || 'precio') === 'precio'
-                                            ? 'bg-white text-gray-800 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-800'
-                                            }`}
-                                        >
-                                          ${item.precio?.toFixed(2)}
-                                        </button>
-                                        <button
-                                          onClick={() => changePriceType(item.id, 'precio_2')}
-                                          className={`flex-1 px-2 py-1 text-xs font-semibold rounded transition-all ${item.priceType === 'precio_2'
-                                            ? 'bg-white text-gray-800 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-800'
-                                            }`}
-                                        >
-                                          ${item.precio_2?.toFixed(2)}
-                                        </button>
+                                    <div className="relative w-full">
+                                      <select
+                                        value={item.priceType || 'precio'}
+                                        onChange={(e) => changePriceType(item.id, e.target.value)}
+                                        className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#008cc8] shadow-sm"
+                                      >
+                                        <option value="precio">${item.precio?.toFixed(2)}</option>
+                                        {item.precio_2 > 0 && (
+                                          <option value="precio_2">${item.precio_2?.toFixed(2)}</option>
+                                        )}
+                                        {item.precio_3 > 0 && (
+                                          <option value="precio_3">${item.precio_3?.toFixed(2)}</option>
+                                        )}
+                                      </select>
+                                      {/* Custom dropdown arrow */}
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col items-center gap-1">
-                                      <span className="text-sm font-semibold text-gray-800">
-                                        ${item.precio?.toFixed(2)}
-                                      </span>
-                                    </div>
+                                    <span className="text-sm font-semibold text-gray-800">
+                                      $ {item.precio?.toFixed(2)}
+                                    </span>
                                   )}
                                 </div>
 
@@ -1044,12 +1062,12 @@ const calculateTotal = () => {
                     )}
                   </div>
 
-                  {/* Total y Pago - Ahora siempre visible */}
+                  {/* Total y Pago */}
                   <div className="p-4 space-y-3">
                     <div className="h-px bg-gray-800 mx-auto"></div>
                     <div className="flex justify-between items-center text-2xl font-semibold">
                       <span>Total:</span>
-                      <span className="text-[#2b2929]">${calculateTotal().toFixed(2)}</span>
+                      <span className="text-[#2b2929]">$ {calculateTotal().toFixed(2)}</span>
                     </div>
 
                     {/* Dinero Recibido y Vuelto */}
@@ -1059,14 +1077,13 @@ const calculateTotal = () => {
                           Recibe:
                         </label>
                         <div className="relative">
-                          <CircleDollarSign className="absolute left-3 top-3 text-gray-400" size={20} />
                           <input
                             type="number"
                             step="0.01"
                             value={receivedMoney}
                             onChange={(e) => setReceivedMoney(e.target.value)}
                             placeholder="0.00"
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
                             disabled={cart.length === 0}
                           />
                         </div>
@@ -1120,6 +1137,7 @@ const calculateTotal = () => {
                 </div>
               </div>
             )}
+
             {/* INVENTARIO - Agregar Productos */}
             {activeTab === 'inventory-add' && (
               <div className="max-w-3xl mx-auto">
@@ -1130,134 +1148,15 @@ const calculateTotal = () => {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nombre del Producto <span className="text-red-500">*</span>
+                        Nombre <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={newProduct.nombre}
                         onChange={(e) => setNewProduct({ ...newProduct, nombre: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                        placeholder="Ej: Laptop Dell Inspiron"
+                        placeholder="Escriba el nombre del producto"
                       />
-                    </div>
-
-                    {/* Unidad de medida */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Unidad de Medida <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={newProduct.unidad || 'unidad'}
-                        onChange={(e) => setNewProduct({ ...newProduct, unidad: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                      >
-                        <option value="unidad">Unidad</option>
-                        <option value="libras">Libras</option>
-                        <option value="kg">Kilogramos</option>
-                        <option value="gramos">Gramos</option>
-                        <option value="litros">Litros</option>
-                        <option value="ml">Mililitros</option>
-                      </select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Costo <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <CircleDollarSign className="absolute left-3 top-3 text-gray-400" size={20} />
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={newProduct.costo}
-                            onChange={(e) => setNewProduct({ ...newProduct, costo: e.target.value })}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          % Ganancia <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={newProduct.porcentajeGanancia}
-                          onChange={(e) => setNewProduct({ ...newProduct, porcentajeGanancia: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                          placeholder="Ej: 25"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Vista previa del precio de venta 1 */}
-                    {newProduct.costo && newProduct.porcentajeGanancia && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-800">Precio de Venta 1:</span>
-                          <span className="text-2xl font-bold text-gray-600">
-                            ${calculateSalePrice(newProduct.costo, newProduct.porcentajeGanancia)}
-                          </span>
-                        </div>
-                        <p className="text-s text-gray-600 mt-2">
-                          Ganancia: ${(calculateSalePrice(newProduct.costo, newProduct.porcentajeGanancia) - parseFloat(newProduct.costo)).toFixed(2)}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Precio 2 (Opcional) */}
-                    <div className="border-t pt-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <input
-                          type="checkbox"
-                          id="hasPrecio2"
-                          checked={newProduct.hasPrecio2 || false}
-                          onChange={(e) => setNewProduct({
-                            ...newProduct,
-                            hasPrecio2: e.target.checked,
-                            porcentajeGanancia2: e.target.checked ? newProduct.porcentajeGanancia2 : ''
-                          })}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-[#008cc8]"
-                        />
-                        <label htmlFor="hasPrecio2" className="text-sm font-medium text-gray-700">
-                          Agregar Precio 2 (Opcional)
-                        </label>
-                      </div>
-
-                      {newProduct.hasPrecio2 && (
-                        <div className="space-y-4 pl-6 border-l-2 border-blue-200">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              % Ganancia para Precio 2
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={newProduct.porcentajeGanancia2 || ''}
-                              onChange={(e) => setNewProduct({ ...newProduct, porcentajeGanancia2: e.target.value })}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                              placeholder="Ej: 35"
-                            />
-                          </div>
-
-                          {/* Vista previa del precio de venta 2 */}
-                          {newProduct.costo && newProduct.porcentajeGanancia2 && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-gray-800">Precio de Venta 2:</span>
-                                <span className="text-2xl font-bold text-gray-600">
-                                  ${calculateSalePrice(newProduct.costo, newProduct.porcentajeGanancia2)}
-                                </span>
-                              </div>
-                              <p className="text-s text-gray-600 mt-2">
-                                Ganancia: ${(calculateSalePrice(newProduct.costo, newProduct.porcentajeGanancia2) - parseFloat(newProduct.costo)).toFixed(2)}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -1284,9 +1183,170 @@ const calculateTotal = () => {
                           value={newProduct.minStock}
                           onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                          placeholder="5"
+                          placeholder="0"
                         />
                       </div>
+                    </div>
+
+                    {/* Unidad de medida */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Unidad de Medida <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={newProduct.unidad || 'unidad'}
+                        onChange={(e) => setNewProduct({ ...newProduct, unidad: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                      >
+                        <option value="unidad">Unidad</option>
+                        <option value="libras">Libras</option>
+                        <option value="kg">Kilogramos</option>
+                        <option value="gramos">Gramos</option>
+                        <option value="litros">Litros</option>
+                        <option value="ml">Mililitros</option>
+                      </select>
+                    </div>
+
+                    {/* Costo */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Costo <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newProduct.costo}
+                          onChange={(e) => setNewProduct({ ...newProduct, costo: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Precio 1 - obligatorio*/}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Precio <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newProduct.precio1 || ''}
+                          onChange={(e) => setNewProduct({ ...newProduct, precio1: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                          placeholder="0"
+                        />
+                      </div>
+                      {newProduct.costo && newProduct.precio1 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Ganancia:</span>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-blue-600">
+                              {(((parseFloat(newProduct.precio1) - parseFloat(newProduct.costo)) / parseFloat(newProduct.costo)) * 100).toFixed(1)}%
+                            </span>
+                            <span className="text-sm text-gray-500 ml-2">
+                              (${(parseFloat(newProduct.precio1) - parseFloat(newProduct.costo)).toFixed(2)})
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Precio 2 - Opcional */}
+                    <div className="block text-sm font-medium text-gray-700 mb-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="hasPrecio2"
+                          checked={newProduct.hasPrecio2 || false}
+                          onChange={(e) => setNewProduct({
+                            ...newProduct,
+                            hasPrecio2: e.target.checked,
+                            precio2: e.target.checked ? newProduct.precio2 : ''
+                          })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-[#008cc8]"
+                        />
+                        <label htmlFor="hasPrecio2" className="text-sm font-semibold text-gray-700">
+                          Precio 2
+                        </label>
+                      </div>
+                      {newProduct.hasPrecio2 && (
+
+                        <div className="space-y-3 pl-4 border-l-2 border-blue-200">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={newProduct.precio2 || ''}
+                              onChange={(e) => setNewProduct({ ...newProduct, precio2: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          {newProduct.costo && newProduct.precio2 && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Ganancia:</span>
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-green-600">
+                                  {(((parseFloat(newProduct.precio2) - parseFloat(newProduct.costo)) / parseFloat(newProduct.costo)) * 100).toFixed(1)}%
+                                </span>
+                                <span className="text-sm text-gray-500 ml-2">
+                                  (${(parseFloat(newProduct.precio2) - parseFloat(newProduct.costo)).toFixed(2)})
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Precio 3 - Opcional */}
+                    <div className="block text-sm font-medium text-gray-700 mb-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="hasPrecio3"
+                          checked={newProduct.hasPrecio3 || false}
+                          onChange={(e) => setNewProduct({
+                            ...newProduct,
+                            hasPrecio3: e.target.checked,
+                            precio3: e.target.checked ? newProduct.precio3 : ''
+                          })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-[#008cc8]"
+                        />
+                        <label htmlFor="hasPrecio3" className="text-sm font-semibold text-gray-700">
+                          Precio 3
+                        </label>
+                      </div>
+                      {newProduct.hasPrecio3 && (
+                        <div className="space-y-3 pl-4 border-l-2 border-purple-200">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={newProduct.precio3 || ''}
+                              onChange={(e) => setNewProduct({ ...newProduct, precio3: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          {newProduct.costo && newProduct.precio3 && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Ganancia:</span>
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-purple-600">
+                                  {(((parseFloat(newProduct.precio3) - parseFloat(newProduct.costo)) / parseFloat(newProduct.costo)) * 100).toFixed(1)}%
+                                </span>
+                                <span className="text-sm text-gray-500 ml-2">
+                                  (${(parseFloat(newProduct.precio3) - parseFloat(newProduct.costo)).toFixed(2)})
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Vista previa del código */}
@@ -1294,22 +1354,25 @@ const calculateTotal = () => {
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                         <p className="text-sm text-gray-600">Código que se generará:</p>
                         <p className="text-lg font-mono font-bold text-gray-800 mt-1">
-                          {generateProductCode(newProduct.nombre)}
+                          {newProduct.codigo}
                         </p>
                       </div>
                     )}
+
 
                     <div className="flex gap-3 pt-4">
                       <button
                         onClick={() => setNewProduct({
                           nombre: '',
                           costo: '',
-                          porcentajeGanancia: '',
-                          porcentajeGanancia2: '',
+                          precio1: '',
+                          precio2: '',
+                          precio3: '',
                           cantidad: '',
                           minStock: '',
                           unidad: 'unidad',
-                          hasPrecio2: false
+                          hasPrecio2: false,
+                          hasPrecio3: false
                         })}
                         className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
                       >

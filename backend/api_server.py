@@ -165,8 +165,6 @@ def create_app():
                         'success': False,
                         'message': f'Campo requerido faltante: {field}'
                     }), 400
-            if data['precio_2'] == None:
-                 data['precio_2'] = 0.0
 
             # Preparar datos del producto con valores por defecto
             product_data = {
@@ -175,9 +173,10 @@ def create_app():
                 'cantidad': data.get('cantidad', 0),
                 'costo': float(data['costo']),
                 'precio_1': float(data['precio_1']),
+                'precio_2': float(data['precio_2']),
+                'precio_3': float(data['precio_3']),
                 'minStock': data.get('minStock', 5),
                 'unidad': data['unidad'],
-                'precio_2': float(data['precio_2']),
             }
             
             # Guardar producto usando la clase de Google Sheets
@@ -257,7 +256,6 @@ def create_app():
             custom_end = request.args.get('end_date')
             
             result = inventory.get_profit_analysis(period, custom_start, custom_end)
-            print(result)
             return jsonify(result)
             
         except Exception as e:
