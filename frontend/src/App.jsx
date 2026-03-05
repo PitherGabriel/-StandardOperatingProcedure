@@ -647,7 +647,7 @@ const POSSystem = () => {
   }
 
   const calculateChange = () => {
-    const total = calculateTotal();
+    const total = calculateTotal().toFixed(2);
     const received = parseFloat(receivedMoney) || 0;
     return received - total;
   };
@@ -1089,7 +1089,7 @@ const POSSystem = () => {
                         </div>
                       </div>
 
-                      {receivedMoney && parseFloat(receivedMoney) >= calculateTotal() && calculateTotal() > 0 && (
+                      {receivedMoney && parseFloat(receivedMoney) >= calculateTotal().toFixed(2) && calculateTotal().toFixed(2) > 0 && (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                           <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-green-800">Vuelto:</span>
@@ -1100,7 +1100,7 @@ const POSSystem = () => {
                         </div>
                       )}
 
-                      {receivedMoney && parseFloat(receivedMoney) < calculateTotal() && calculateTotal() > 0 && (
+                      {receivedMoney && parseFloat(receivedMoney) < calculateTotal().toFixed(2) && calculateTotal().toFixed(2) > 0 && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                           <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-red-800">Falta:</span>
