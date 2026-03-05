@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import uuid
+import time
 
 # Printer
 from escpos.printer import Network
@@ -120,8 +121,24 @@ class InventoryManager:
         self.sheet_inventory = self.spreadsheet.worksheet('Inventario')
         self.sheet_sales = self.spreadsheet.worksheet('Ventas')
         self.sheet_users = self.spreadsheet.worksheet('Usuarios')  # Nueva hoja
-        self.printer = ReceiptPrinter()
-    
+        self._row_cache = {}
+        self._row_cache_timestamp = 0
+        self._row_cache_ttl = 300
+
+    def _get_product_row(self, product_code):
+        """Get row number from cache or fetch from sheet"""
+        now = time.time()
+        
+        # Refresh entire cache if expired
+        if (now - self._row_cache_timestamp) > self._row_cache_ttl:
+            print("Refreshing row cache...")
+            codes = self.sheet_inventory.col_values(2)  # fetch only codigo column
+            self._row_cache = {code: i + 1 for i, code in enumerate(codes) if code}
+            self._row_cache_timestamp = now
+            print(f"Cache loaded with {len(self._row_cache)} products")
+        
+        return self._row_cache.get(product_code)
+
     def hash_password(self, password):
         """Hash de contraseña con SHA256"""
         return hashlib.sha256(password.encode()).hexdigest()
@@ -247,6 +264,8 @@ class InventoryManager:
             # Obtener el último ID para generar el siguiente
             all_records = self.sheet_inventory.get_all_records()
             next_id = len(all_records) + 1  # El siguiente ID es el total de registros + 1
+            new_row = len(all_records) + 2  # +2 for header row
+
             
             # Preparar fila para insertar
             # Estructura: ID, Codigo, Nombre, Cantidad, Costo, Precio, MinStock, UltimaActualizacion
@@ -268,6 +287,11 @@ class InventoryManager:
             
             # Insertar el producto
             self.sheet_inventory.append_row(row)
+
+            # Update cache
+            self._row_cache[product_data['codigo']] = new_row
+            print(f"Cache actualizado: {product_data['codigo']} -> row {new_row}")
+
             
             return {
                 'success': True,
@@ -302,28 +326,26 @@ class InventoryManager:
     def update_stock(self, product_code, quantity_sold, price_type):
         """Actualiza el stock después de una venta"""
         try:
-            print("Actualizando stock...")
-
             # Buscar el producto
-            cell = self.sheet_inventory.find(product_code)
-            row = cell.row
-            
+            row = self._get_product_row(product_code)
+
+            if row is None:
+                return {'success': False, 'error': f'Producto {product_code} no encontrado'}
+
+            row_values = self.sheet_inventory.row_values(row)
+                        
             # Obtener datos del producto
-            product_id = self.sheet_inventory.cell(row, 1).value
-            product_name = self.sheet_inventory.cell(row, 3).value
-            current_qty = float(self.sheet_inventory.cell(row, 4).value)
-            unidad = self.sheet_inventory.cell(row, 5).value.lower()
-            price_1 = float(self.sheet_inventory.cell(row, 7).value)
-            price_2 = float(self.sheet_inventory.cell(row, 8).value)
-            price_3 = float(self.sheet_inventory.cell(row, 9).value)
-            min_stock = float(self.sheet_inventory.cell(row, 10).value)
+            product_id = row_values[0]
+            product_name = row_values[2]
+            current_qty = float(row_values[3])
+            unidad = row_values[4].lower()
+            price_1 = float(row_values[6])
+            price_2 = float(row_values[7]) if row_values[7] else 0.0
+            price_3 = float(row_values[8]) if row_values[8] else 0.0
+            min_stock = float(row_values[9])
             quantity_sold = float(quantity_sold)
-
-            print("Datos del producto obtenido")
-
             
             if unidad == "unidad" and not quantity_sold.is_integer():
-                print("Este producto solo se puede vender en unidades enteras")
                 return {
                     'success': False,
                     'error': 'Este producto solo se puede vender en unidades enteras'
@@ -331,8 +353,6 @@ class InventoryManager:
 
             # Verificar si hay suficiente stock
             if current_qty < quantity_sold:
-                print("Este producto no tiene stock suficiente")
-
                 return {
                     'success': False,
                     'error': 'Stock insuficiente'
@@ -340,13 +360,12 @@ class InventoryManager:
             
             # Calcular nueva cantidad
             new_qty = round(current_qty - quantity_sold, 2)
-            
-            # Actualizar en la hoja
-            self.sheet_inventory.update_cell(row, 4, new_qty)
-            
-            # Actualizar timestamp
             timestamp = datetime.now(BUSINESS_TZ).strftime('%Y-%m-%d %H:%M:%S')
-            self.sheet_inventory.update_cell(row, 11, timestamp)
+
+            self.sheet_inventory.batch_update([
+                {'range': f'D{row}', 'values': [[new_qty]]},
+                {'range': f'K{row}', 'values': [[timestamp]]}
+            ])
             
             # Verificar si requiere alerta
             alert = new_qty <= min_stock
@@ -359,8 +378,6 @@ class InventoryManager:
             else:
                 selected_price = price_1
             
-            print("Stock actualizado correctamente")
-
             return {
                     'success': True,
                     'product_id': product_id,
@@ -380,8 +397,6 @@ class InventoryManager:
         
     def save_sale(self, sale_id, sale_details, total, vendedor='Sistema'):
         """Guarda el detalle de la venta en la hoja de Ventas"""
-
-        print("Guardando venta...")
 
         try:
             now = datetime.now(BUSINESS_TZ)
@@ -405,13 +420,13 @@ class InventoryManager:
                 ]
                 rows.append(row)
             
-            print(f'Filas para insertar: {rows}')
+            print(f'Venta para insertar: {rows}')
 
             # Insertar todas las filas de la venta
             self.sheet_sales.append_rows(rows, value_input_option='USER_ENTERED')
-            
-            print("Venta guardada correctamente")
 
+            print(f'Venta guardada')
+            
             return {
                 'success': True,
                 'sale_id': sale_id,
@@ -436,8 +451,6 @@ class InventoryManager:
         
         # Procesar cada producto        
         for item in cart_items:
-            print(f"Precesando item: {item['codigo']}")
-
             result = self.update_stock(
                 item['codigo'],
                 item['cantidad_vendida'],
@@ -473,7 +486,7 @@ class InventoryManager:
                     'cantidad_restante': result['new_quantity']
                 })
 
-        print(f"Detalles de compra: {sale_details}")
+        print("Inventario actualizado")
         
         save_result = self.save_sale(sale_id, sale_details, total_sale, vendedor)
 

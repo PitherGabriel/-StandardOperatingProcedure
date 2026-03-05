@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-from pos_backend import InventoryManager, ReceiptPrinter
-import secrets
+from pos_backend import InventoryManager
+import time
 import os
 
 def create_app():
@@ -146,8 +146,9 @@ def create_app():
     def get_inventory():
         """Obtener todo el inventario"""
         try:
+            print("Pulling all inventory from Google Sheets")
             data = inventory.get_inventory()
-            print(data)
+            #print(data)
             return jsonify({'success': True, 'data': data})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
@@ -181,7 +182,7 @@ def create_app():
             
             # Guardar producto usando la clase de Google Sheets
             result = inventory.add_product(product_data)
-            
+           
             return jsonify(result)
             
         except Exception as e:
@@ -201,16 +202,17 @@ def create_app():
     @app.route('/api/sale', methods=['POST'])
     def process_sale():
         """Procesar una venta"""
-        print("Procesando venta")
-
         try:
-            cart = request.json.get('cart', [])
+            #start = time.time()
 
+            cart = request.json.get('cart', [])
             print(f"Carrito de compra : {cart}")
 
             vendedor = request.json.get('vendedor', 'Sistema')
-
             result =  inventory.process_sale(cart, vendedor)
+
+            #elapsed = time.time() - start
+            #print(f"Venta procesada en {elapsed:.2f} segundos")
 
             return jsonify(result)
         except Exception as e:
@@ -243,6 +245,7 @@ def create_app():
     def get_alerts():
         """Obtener alertas de stock bajo"""
         try:
+            print("get api alerts")
             alerts = inventory.get_low_stock_alerts()
             return jsonify({'success': True, 'alerts': alerts})
         except Exception as e:

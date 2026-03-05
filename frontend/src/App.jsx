@@ -138,13 +138,13 @@ const POSSystem = () => {
   //const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   //const [processingInvoice, setProcessingInvoice] = useState(false);
   //const [invoiceResult, setInvoiceResult] = useState(null);
-  const [clienteData, setClienteData] = useState({
-    identificacion: '',
-    razon_social: '',
-    direccion: '',
-    email: '',
-    telefono: ''
-  });
+  //const [clienteData, setClienteData] = useState({
+  //  identificacion: '',
+  //  razon_social: '',
+  //  direccion: '',
+  //  email: '',
+  //  telefono: ''
+  //});
 
   // Estados para calculo de utilidades
   const [profitAnalysis, setProfitAnalysis] = useState(null);
@@ -160,9 +160,9 @@ const POSSystem = () => {
   }, []);
 
   // Cargar inventario
-  useEffect(() => {
-    loadInventory();
-  }, []);
+  //useEffect(() => {
+  //  loadInventory();
+  //}, []);
 
   // Acitivar alerta de inventario 
   useEffect(() => {
@@ -180,7 +180,7 @@ const POSSystem = () => {
   // Notificaciones
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000); // Auto-hide after 3 seconds
+    setTimeout(() => setNotification(null), 5000); // Auto-hide after 3 seconds
   };
 
   const loadProfitAnalysis = async (period = selectedPeriod) => {
@@ -272,12 +272,12 @@ const POSSystem = () => {
   };
 
   // Calcular precio de venta
-  const calculateSalePrice = (costo, porcentaje) => {
-    if (!costo || !porcentaje) return 0;
-    const costoNum = parseFloat(costo);
-    const porcentajeNum = parseFloat(porcentaje);
-    return (costoNum * (1 + porcentajeNum / 100)).toFixed(2);
-  };
+  //const calculateSalePrice = (costo, porcentaje) => {
+  //  if (!costo || !porcentaje) return 0;
+  //  const costoNum = parseFloat(costo);
+  //  const porcentajeNum = parseFloat(porcentaje);
+  //  return (costoNum * (1 + porcentajeNum / 100)).toFixed(2);
+  //};
 
   // Agregar nuevo producto
   const addNewProduct = async () => {
@@ -374,7 +374,7 @@ const POSSystem = () => {
         return {
           ...item,
           priceType: newPriceType,
-          precioActual: item[newPriceType] // Update to the new price from the product data
+          precioActual: item[newPriceType]
         };
       }
       return item;
@@ -415,7 +415,7 @@ const POSSystem = () => {
     ));
   };
 
-  // Updated function to handle empty inputs gracefully
+  // Updated function to handle empty inputs
   const setCartQuantity = (productId, newQuantity) => {
     const product = inventory.find(p => p.id === productId);
 
@@ -471,6 +471,7 @@ const POSSystem = () => {
     setCart(cart.filter(item => item.id !== productId));
   };
 
+  /*
   const processSaleWithInvoice = async () => {
     if (cart.length === 0) {
       alert('El carrito está vacío');
@@ -576,7 +577,7 @@ const POSSystem = () => {
     });
     setInvoiceResult(null);
   };
-
+*/
   // Procesar venta simple
   const processSale = async () => {
     if (cart.length === 0) {
@@ -690,7 +691,7 @@ const POSSystem = () => {
         setIsAuthenticated(true);
         setCurrentUser(data.user);
         setVendedor(data.user.nombre || data.user.username);
-        loadInventory();
+        await loadInventory();
       }
     } catch (error) {
       console.error('Error verificando autenticación:', error);
