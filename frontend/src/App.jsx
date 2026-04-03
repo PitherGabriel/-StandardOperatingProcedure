@@ -1725,15 +1725,15 @@ const POSSystem = () => {
                               {profitAnalysis.productos_vendidos.map((producto, idx) => (
                                 <tr key={idx} className="hover:bg-gray-50">
                                   <td className="px-4 py-3 text-sm text-gray-800">{producto.producto}</td>
-                                  <td className="px-4 py-3 text-sm text-right text-gray-600">{producto.cantidad}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-gray-600">{producto.cantidad.toFixed(2)}</td>
                                   <td className="px-4 py-3 text-sm text-right text-blue-600">
-                                    ${producto.ingresos}
+                                    ${producto.ingresos.toFixed(2)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-right text-red-600">
-                                    ${producto.costos}
+                                    ${producto.costos.toFixed(2)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">
-                                    ${producto.utilidad}
+                                    ${producto.utilidad.toFixed(2)}
                                   </td>
                                 </tr>
                               ))}
@@ -1765,10 +1765,10 @@ const POSSystem = () => {
                                   <td className="px-4 py-3 text-sm text-gray-800 font-medium">{vendedor.vendedor}</td>
                                   <td className="px-4 py-3 text-sm text-right text-gray-600">{vendedor.ventas}</td>
                                   <td className="px-4 py-3 text-sm text-right text-blue-600">
-                                    ${vendedor.ingresos}
+                                    ${vendedor.ingresos.toFixed(2)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">
-                                    ${vendedor.utilidad}
+                                    ${vendedor.utilidad.toFixed(2)}
                                   </td>
                                 </tr>
                               ))}
