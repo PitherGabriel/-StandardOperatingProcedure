@@ -65,7 +65,7 @@ const LoginScreen = ({
             value={loginForm.password}
             onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            autocomplete="current-password"
+            autoComplete="current-password"
             placeholder="Ingrese su contraseña"
             disabled={isLoggingIn}
           />
@@ -942,7 +942,7 @@ const POSSystem = () => {
                             </h3>
                             <p className="text-xs text-gray-500 truncate">{product.codigo}</p>
                             <p className="text-sm font-bold text-[#008cc8] mt-1">
-                              ${product.precio.toFixed(3)}
+                              ${product.precio}
                             </p>
                             <p className={`text-xs mt-1 ${product.cantidad === 0 ? 'text-red-600' : 'text-gray-600'
                               }`}>
@@ -1019,12 +1019,12 @@ const POSSystem = () => {
                                         onChange={(e) => changePriceType(item.id, e.target.value)}
                                         className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#008cc8] shadow-sm"
                                       >
-                                        <option value="precio">${item.precio?.toFixed(2)}</option>
+                                        <option value="precio">${item.precio?.toFixed(3)}</option>
                                         {item.precio_2 > 0 && (
-                                          <option value="precio_2">${item.precio_2?.toFixed(2)}</option>
+                                          <option value="precio_2">${item.precio_2?.toFixed(3)}</option>
                                         )}
                                         {item.precio_3 > 0 && (
-                                          <option value="precio_3">${item.precio_3?.toFixed(2)}</option>
+                                          <option value="precio_3">${item.precio_3?.toFixed(3)}</option>
                                         )}
                                       </select>
                                       {/* Custom dropdown arrow */}
@@ -1036,7 +1036,7 @@ const POSSystem = () => {
                                     </div>
                                   ) : (
                                     <span className="text-sm font-semibold text-gray-800">
-                                      $ {item.precio?.toFixed(2)}
+                                      $ {item.precio?.toFixed(3)}
                                     </span>
                                   )}
                                 </div>
@@ -1425,8 +1425,8 @@ const POSSystem = () => {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-800">${item.precio}</td>
                           <td className="px-6 py-4 text-sm text-gray-800">
-                            {item.precio_2 ? `$${item.precio_2.toFixed(2)}` : "-"}
-                          </td>                          <td className="px-6 py-4 text-sm">
+                            {item.precio_2 ? `$${item.precio_2.toFixed(2)}` : "-"} </td>
+                          <td className="px-6 py-4 text-sm">
                             {item.cantidad === 0 ? (
                               <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">
                                 Sin Stock
