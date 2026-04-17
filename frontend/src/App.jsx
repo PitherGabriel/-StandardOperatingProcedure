@@ -1,4 +1,7 @@
 import React, { useState, useEffect, forwardRef } from 'react';
+import CameraModal from './camera';
+import Header from './header';
+
 import {
   ShoppingCart,
   Package,
@@ -8,9 +11,10 @@ import {
   Search, History,
   TrendingUp,
   Check,
-  X, Loader,
+  X, Loader, User,
   PackagePlus,
-  CircleDollarSign
+  CircleDollarSign,
+  Camera
 } from 'lucide-react';
 
 
@@ -114,6 +118,11 @@ const POSSystem = () => {
   const [receivedMoney, setReceivedMoney] = useState('');
   const [processingSale, setProcessingSale] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  // Camera
+  const [processingPhotoSale, setProcessingPhotoSale] = useState(false);
+
 
   // Estados para nuevo producto
   const [newProduct, setNewProduct] = useState({
@@ -271,13 +280,6 @@ const POSSystem = () => {
     return `${prefix}${randomNum}`;
   };
 
-  // Calcular precio de venta
-  //const calculateSalePrice = (costo, porcentaje) => {
-  //  if (!costo || !porcentaje) return 0;
-  //  const costoNum = parseFloat(costo);
-  //  const porcentajeNum = parseFloat(porcentaje);
-  //  return (costoNum * (1 + porcentajeNum / 100)).toFixed(2);
-  //};
 
   // Agregar nuevo producto
   const addNewProduct = async () => {
@@ -750,6 +752,54 @@ const POSSystem = () => {
     }
   };
 
+  // Send picture sale 
+  const processPhotoSale = async (img) => {
+
+    console.log("Captured image:", img);
+    const formData = new FormData();
+    setProcessingPhotoSale(true);
+    
+    formData.append('image', img);
+    formData.append('vendedor', currentUser?.nombre);
+
+    try {
+      const response = await fetch(`${API_URL}/sale`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const updatedInventory = inventory.map(item => {
+          const cartItem = cart.find(c => c.id === item.id);
+          if (cartItem) {
+            return {
+              ...item,
+              cantidad: item.cantidad - cartItem.cantidadVendida
+            };
+          }
+          return item;
+        });
+
+        setInventory(updatedInventory);
+        showNotification('¡Venta procesada exitosamente!', 'success');
+        setCart([]);
+        setReceivedMoney('');
+      }
+      else {
+        showNotification(result.error, 'error');
+      }
+
+    } catch (error) {
+      //console.error('Error procesando venta:', error);
+      showNotification('Error al procesar la venta', 'error');
+    } finally {
+      setProcessingPhotoSale(false);
+    }
+
+  };
+
   return (
     <>
       {!isAuthenticated ? (
@@ -786,16 +836,22 @@ const POSSystem = () => {
           )}
 
           {/* Header */}
-          <div className="bg-linear-to-r from-[#008cc8] to-[#005174] text-white p-6 shadow-lg">
+          <div className="bg-linear-to-r from-[#008cc8] to-[#005174] text-white p-4 sm:p-6 shadow-lg">
             <div className="flex justify-between items-center">
+              {/* Title */}
               <div>
-                <h1 className="text-3xl font-bold">Comercial TB</h1>
-                <p className="text-blue-100 text-sm mt-1">Gestión de Ventas e Inventario</p>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">
+                  Comercial TB
+                </h1>
+                <p className="text-blue-100 text-xs sm:text-sm mt-1">
+                  Gestión de Ventas e Inventario
+                </p>
               </div>
-              <div className="flex items-center gap-4">
+
+              {/* Desktop user section */}
+              <div className="hidden sm:flex items-center gap-4">
                 <div className="bg-white/20 px-3 py-2 rounded-lg">
                   <p className="text-sm">
-                    <span className="font-medium">Usuario:</span>{' '}
                     <span className="font-semibold">
                       {currentUser?.nombre || currentUser?.username}
                     </span>
@@ -804,14 +860,50 @@ const POSSystem = () => {
                     {currentUser?.role}
                   </p>
                 </div>
+
                 <button
                   onClick={handleLogout}
                   className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2"
                 >
-                  <X size={20} />
+                  <X size={18} />
                   Cerrar Sesión
                 </button>
               </div>
+
+              {/* Mobile menu button */}
+              <div className="sm:hidden relative">
+                <button
+                  onClick={() => setOpen(!open)}
+                  className="bg-white/20 p-2 rounded-lg"
+                >
+                  <User size={20} />
+                </button>
+
+                {/* Dropdown */}
+                {open && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white text-gray-800 rounded-lg shadow-lg overflow-hidden">
+
+                    <div className="px-4 py-3 border-b">
+                      <p className="text-sm font-semibold">
+                        {currentUser?.nombre || currentUser?.username}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {currentUser?.role}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <X size={16} />
+                      Cerrar Sesión
+                    </button>
+
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
 
@@ -881,7 +973,7 @@ const POSSystem = () => {
           </div>
 
           {/* Alertas */}
-          {alerts.length > 0 && (
+          {activeTab === 'inventario' && alerts.length > 0 && (
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mx-6 mt-4 rounded">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="text-yellow-600" />
@@ -905,7 +997,7 @@ const POSSystem = () => {
                       <Search className="absolute left-3 top-3 text-gray-400" size={20} />
                       <input
                         type="text"
-                        placeholder="Busca por nombre o código..."
+                        placeholder="Busca por nombre o codigo..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
@@ -971,90 +1063,140 @@ const POSSystem = () => {
                     ) : (
                       <div className="space-y-2">
                         {/* Header row */}
-                        <div className="grid grid-cols-12 gap-2 bg-gray-100 px-3 py-2 rounded-lg">
-                          <div className="col-span-4">
-                            <span className="text-xs font-medium text-gray-500 uppercase">Producto</span>
-                          </div>
-                          <div className="col-span-3 text-center">
-                            <span className="text-xs font-medium text-gray-500 uppercase">Cantidad</span>
-                          </div>
-                          <div className="col-span-3 text-center">
-                            <span className="text-xs font-medium text-gray-500 uppercase">Precio</span>
-                          </div>
-                          <div className="col-span-2 text-right">
-                            <span className="text-xs font-medium text-gray-500 uppercase">Subtotal</span>
-                          </div>
+                        {/* Desktop Header */}
+                        <div className="hidden sm:grid grid-cols-12 gap-2 bg-gray-100 px-3 py-2 rounded-lg">
+                          <div className="col-span-4 text-xs font-medium text-gray-500 uppercase">Producto</div>
+                          <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</div>
+                          <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Precio</div>
+                          <div className="col-span-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</div>
                         </div>
 
-                        {/* Cart items */}
                         {cart.map(item => {
                           const hasTwoPrices = item.precio_2 !== undefined && item.precio_2 !== null && item.precio_2 > 0;
+
                           return (
                             <div key={item.id} className="bg-gray-100 p-3 rounded-lg">
-                              <div className="grid grid-cols-12 gap-2 items-center">
-                                {/* Product Name - 4 columns */}
-                                <div className="col-span-4 min-w-0">
-                                  <h3 className="font-semibold text-sm text-gray-800 truncate">{item.nombre}</h3>
-                                </div>
 
-                                {/* Quantity - 3 columns */}
-                                <div className="col-span-3 flex items-center justify-center gap-1">
-                                  <input
-                                    type='number'
-                                    value={item.cantidadVendida || ''}
-                                    placeholder="0"
-                                    step={item.unidad === 'unidad' ? "1" : '0.01'}
-                                    min='0'
-                                    onChange={(e) => setCartQuantity(item.id, e.target.value)}
-                                    onWheel={(e) => e.target.blur()}
-                                    className="w-20 text-center text-sm font-semibold bg-gray-50 border border-gray-300 rounded px-2 py-1"
-                                  />
-                                </div>
-                                {/* Price - 3 columns */}
-                                <div className="col-span-3 flex flex-col items-center justify-center gap-1">
-                                  {hasTwoPrices ? (
-                                    <div className="relative w-full">
-                                      <select
-                                        value={item.priceType || 'precio'}
-                                        onChange={(e) => changePriceType(item.id, e.target.value)}
-                                        className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#008cc8] shadow-sm"
-                                      >
-                                        <option value="precio">${item.precio?.toFixed(3)}</option>
-                                        {item.precio_2 > 0 && (
-                                          <option value="precio_2">${item.precio_2?.toFixed(3)}</option>
-                                        )}
-                                        {item.precio_3 > 0 && (
-                                          <option value="precio_3">${item.precio_3?.toFixed(3)}</option>
-                                        )}
-                                      </select>
-                                      {/* Custom dropdown arrow */}
-                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm font-semibold text-gray-800">
-                                      $ {item.precio?.toFixed(3)}
-                                    </span>
-                                  )}
-                                </div>
+                              {/* ✅ MOBILE CARD */}
+                              <div className="sm:hidden space-y-2">
 
-                                {/* Total - 2 columns */}
-                                <div className="col-span-2 flex items-center justify-end gap-2">
-                                  <p className="text-sm font-bold text-gray-800">
-                                    ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
-                                  </p>
-
-                                  {/* Delete Button */}
+                                {/* Product name + delete */}
+                                <div className="flex justify-between items-start">
+                                  <h3 className="font-semibold text-sm text-gray-800">
+                                    {item.nombre}
+                                  </h3>
                                   <button
                                     onClick={() => removeFromCart(item.id)}
-                                    className="p-1 text-[#bb1c49] hover:bg-red-50 rounded shrink-0"
+                                    className="p-1 text-[#bb1c49] hover:bg-red-50 rounded"
                                   >
                                     <Trash2 size={16} />
                                   </button>
                                 </div>
+
+                                {/* Quantity */}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">Cantidad</span>
+                                  <input
+                                    type="number"
+                                    value={item.cantidadVendida || ''}
+                                    placeholder="0"
+                                    step={item.unidad === 'unidad' ? "1" : '0.01'}
+                                    min="0"
+                                    onChange={(e) => setCartQuantity(item.id, e.target.value)}
+                                    onWheel={(e) => e.target.blur()}
+                                    className="w-24 text-center text-sm font-semibold bg-gray-50 border border-gray-300 rounded px-2 py-1"
+                                  />
+                                </div>
+
+                                {/* Price */}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">Precio</span>
+
+                                  {hasTwoPrices ? (
+                                    <select
+                                      value={item.priceType || 'precio'}
+                                      onChange={(e) => changePriceType(item.id, e.target.value)}
+                                      className="bg-white border border-gray-300 rounded px-2 py-1 text-xs"
+                                    >
+                                      <option value="precio">${item.precio?.toFixed(3)}</option>
+                                      {item.precio_2 > 0 && (
+                                        <option value="precio_2">${item.precio_2?.toFixed(3)}</option>
+                                      )}
+                                      {item.precio_3 > 0 && (
+                                        <option value="precio_3">${item.precio_3?.toFixed(3)}</option>
+                                      )}
+                                    </select>
+                                  ) : (
+                                    <span className="text-sm font-semibold">
+                                      ${item.precio?.toFixed(3)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Subtotal */}
+                                <div className="flex justify-between items-center border-t pt-2">
+                                  <span className="text-xs text-gray-500">Subtotal</span>
+                                  <span className="text-sm font-bold text-gray-800">
+                                    ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* ✅ DESKTOP TABLE ROW */}
+                              <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
+
+                                <div className="col-span-4 min-w-0">
+                                  <h3 className="font-semibold text-sm text-gray-800 truncate">
+                                    {item.nombre}
+                                  </h3>
+                                </div>
+
+                                <div className="col-span-3 flex justify-center">
+                                  <input
+                                    type="number"
+                                    value={item.cantidadVendida || ''}
+                                    step={item.unidad === 'unidad' ? "1" : '0.01'}
+                                    min="0"
+                                    onChange={(e) => setCartQuantity(item.id, e.target.value)}
+                                    className="w-20 text-center text-sm bg-gray-50 border rounded px-2 py-1"
+                                  />
+                                </div>
+
+                                <div className="col-span-3 flex justify-center">
+                                  {hasTwoPrices ? (
+                                    <select
+                                      value={item.priceType || 'precio'}
+                                      onChange={(e) => changePriceType(item.id, e.target.value)}
+                                      className="text-xs border rounded px-2 py-1"
+                                    >
+                                      <option value="precio">${item.precio?.toFixed(3)}</option>
+                                      {item.precio_2 > 0 && (
+                                        <option value="precio_2">${item.precio_2?.toFixed(3)}</option>
+                                      )}
+                                      {item.precio_3 > 0 && (
+                                        <option value="precio_3">${item.precio_3?.toFixed(3)}</option>
+                                      )}
+                                    </select>
+                                  ) : (
+                                    <span className="text-sm font-semibold">
+                                      ${item.precio?.toFixed(3)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="col-span-2 flex justify-end items-center gap-2">
+                                  <p className="text-sm font-bold text-gray-800">
+                                    ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
+                                  </p>
+
+                                  <button
+                                    onClick={() => removeFromCart(item.id)}
+                                    className="p-1 text-[#bb1c49] hover:bg-red-50 rounded"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+
                               </div>
                             </div>
                           );
@@ -1067,7 +1209,7 @@ const POSSystem = () => {
                   <div className="p-4 space-y-3">
                     <div className="h-px bg-gray-800 mx-auto"></div>
                     <div className="flex justify-between items-center text-2xl font-semibold">
-                      <span>Total:</span>
+                      <span>Total</span>
                       <span className="text-[#2b2929]">$ {calculateTotal().toFixed(2)}</span>
                     </div>
 
@@ -1075,7 +1217,7 @@ const POSSystem = () => {
                     <div className="space-y-2">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Recibe:
+                          Recibe
                         </label>
                         <div className="relative">
                           <input
@@ -1083,7 +1225,7 @@ const POSSystem = () => {
                             step="0.01"
                             value={receivedMoney}
                             onChange={(e) => setReceivedMoney(e.target.value)}
-                            placeholder="0.00"
+                            placeholder="0"
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
                             disabled={cart.length === 0}
                           />
@@ -1093,7 +1235,7 @@ const POSSystem = () => {
                       {receivedMoney && parseFloat(receivedMoney) >= calculateTotal().toFixed(2) && calculateTotal().toFixed(2) > 0 && (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                           <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-green-800">Vuelto:</span>
+                            <span className="text-sm font-medium text-green-800">Vuelto</span>
                             <span className="text-xl font-bold text-green-600">
                               ${calculateChange().toFixed(2)}
                             </span>
@@ -1120,7 +1262,7 @@ const POSSystem = () => {
                         className={`px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 
                           ${cart.length === 0 || processingSale
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-[#008cc8] text-white hover:bg-[#007baf]'
+                            : 'bg-[#32ace0] text-white hover:bg-[#007baf]'
                           }`}
                       >
                         {processingSale ? (
@@ -1133,6 +1275,11 @@ const POSSystem = () => {
                           </>
                         )}
                       </button>
+                      <CameraModal
+                        onCapture={(img) => {
+                          processPhotoSale(img);
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
