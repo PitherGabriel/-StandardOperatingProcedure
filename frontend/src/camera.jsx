@@ -24,9 +24,9 @@ export default function CameraModal({ onCapture }) {
 
   const takePhoto = () => {
     const imageSrc = webcamRef.current.getScreenshot();
-    const blob = dataURLtoBlob(imageSrc);                       
-    const file = new File([blob], "photo.jpg", { type: "image/jpeg" }); 
-    onCapture?.(file);                                          
+    const blob = dataURLtoBlob(imageSrc);
+    const file = new File([blob], "photo.jpg", { type: "image/jpeg" });
+    onCapture?.(file);
     setOpen(false);
   };
 
@@ -35,9 +35,9 @@ export default function CameraModal({ onCapture }) {
       {/* Trigger button */}
       <button
         onClick={openCamera}
-        className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2"
+        className="w-full bg-[#d33115] text-white hover:bg-[#801300] px-4 py-2.5 font-semibold justify-center rounded-lg flex items-center gap-2"
       >
-        <Camera size={18} />
+        <Camera size={24} />
       </button>
 
       {/* FULLSCREEN MODAL */}

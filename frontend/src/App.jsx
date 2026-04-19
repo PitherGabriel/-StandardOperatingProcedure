@@ -1,159 +1,35 @@
 import React, { useState, useEffect, forwardRef } from 'react';
-import CameraModal from './camera';
 import Header from './header';
+import LoginScreen from './login';
+import NotificationToast from './notification';
+import PosBox from './pos';
+import Stock from './stock';
+import Inventory from './inventory';
 
 import {
-  ShoppingCart,
-  Package,
-  AlertTriangle,
-  Plus, Minus,
-  Trash2,
-  Search, History,
+  AlertTriangle, Minus,
+  History,
   TrendingUp,
-  Check,
-  X, Loader, User,
-  PackagePlus,
-  CircleDollarSign,
-  Camera
+  CircleDollarSign
 } from 'lucide-react';
-
-
-// Pantalla de Login
-const LoginScreen = ({
-  handleLogin,
-  loginForm,
-  setLoginForm,
-  loginError,
-  isLoggingIn
-}) => (
-  <div className="min-h-screen bg-linear-to-br from-white-600 to-white-800 flex items-center justify-center p-4">
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-      <div className="text-center mb-8">
-        <div className="inline-block p-4 rounded-full mb-5">
-          <img src='logo.png' className='h-35 mx-auto'></img>
-        </div>
-        <h1 className="text-3xl font-bold text-gray-800">Comercial TB</h1>
-        <p className="text-gray-600 mt-2">Inicia sesión para continuar</p>
-      </div>
-
-      {loginError && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
-          {loginError}
-        </div>
-      )}
-
-      <form onSubmit={handleLogin} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Usuario
-          </label>
-          <input
-            type="text"
-            required
-            value={loginForm.username}
-            onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Ingrese su usuario"
-            autoComplete="username"
-            disabled={isLoggingIn}
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Contraseña
-          </label>
-          <input
-            type="password"
-            required
-            value={loginForm.password}
-            onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            autoComplete="current-password"
-            placeholder="Ingrese su contraseña"
-            disabled={isLoggingIn}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={isLoggingIn}
-          className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${isLoggingIn
-            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            : 'bg-[#008cc8] text-white hover:bg-[#016996]'
-            }`}
-        >
-          {isLoggingIn ? (
-            <>
-              <Loader className="animate-spin" size={20} />
-              Iniciando sesión...
-            </>
-          ) : (
-            'Iniciar Sesión'
-          )}
-        </button>
-      </form>
-    </div>
-  </div>
-);
 
 const POSSystem = () => {
 
   // Al inicio del componente POSSystem, agregar estados
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [inventory, setInventory] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [alerts, setAlerts] = useState([]);
   const [activeTab, setActiveTab] = useState('pos'); // pos, inventario, inventory-add, history, summary
   const [salesHistory, setSalesHistory] = useState([]);
-  //const [salesSummary, setSalesSummary] = useState(null);
-  const [vendedor, setVendedor] = useState('Sistema');
-  const [receivedMoney, setReceivedMoney] = useState('');
-  const [processingSale, setProcessingSale] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [open, setOpen] = useState(false);
-
-  // Camera
-  const [processingPhotoSale, setProcessingPhotoSale] = useState(false);
-
-
-  // Estados para nuevo producto
-  const [newProduct, setNewProduct] = useState({
-    nombre: '',
-    codigo: '',
-    costo: '',
-    unidad: '',
-    precio1: '',
-    precio2: '',
-    precio3: '',
-    cantidad: '',
-    minStock: '',
-    hasPrecio2: false,
-    hasPrecio3: false
-  });
 
   // Estados para filtros de historial
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
-
-  // Estados para facturación
-  //const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  //const [processingInvoice, setProcessingInvoice] = useState(false);
-  //const [invoiceResult, setInvoiceResult] = useState(null);
-  //const [clienteData, setClienteData] = useState({
-  //  identificacion: '',
-  //  razon_social: '',
-  //  direccion: '',
-  //  email: '',
-  //  telefono: ''
-  //});
 
   // Estados para calculo de utilidades
   const [profitAnalysis, setProfitAnalysis] = useState(null);
@@ -161,17 +37,10 @@ const POSSystem = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const API_URL = '/api';
-
   // Verificar autenticación al cargar
   useEffect(() => {
     checkAuth();
   }, []);
-
-  // Cargar inventario
-  //useEffect(() => {
-  //  loadInventory();
-  //}, []);
 
   // Acitivar alerta de inventario 
   useEffect(() => {
@@ -179,22 +48,15 @@ const POSSystem = () => {
     setAlerts(lowStock);
   }, [inventory]);
 
-  // Codigo de nuevo producto
-  useEffect(() => {
-    if (newProduct.nombre) {
-      setNewProduct(prev => ({ ...prev, codigo: generateProductCode(prev.nombre) }));
-    }
-  }, [newProduct.nombre]);
-
   // Notificaciones
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000); // Auto-hide after 3 seconds
+    //setTimeout(() => setNotification(null), 5000); // Auto-hide after 5 seconds
   };
 
   const loadProfitAnalysis = async (period = selectedPeriod) => {
     try {
-      let url = `${API_URL}/sales/profit-analysis?period=${period}`;
+      let url = `${import.meta.env.VITE_BACKEND_API_URL}/sales/profit-analysis?period=${period}`;
 
       if (period === 'custom' && customStartDate && customEndDate) {
         url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
@@ -212,7 +74,7 @@ const POSSystem = () => {
 
   const loadInventory = async () => {
     try {
-      const response = await fetch(`${API_URL}/inventory`);
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/inventory`);
       const data = await response.json();
       if (data.success) {
         const formattedInventory = data.data.map(item => ({
@@ -240,7 +102,7 @@ const POSSystem = () => {
   const loadSalesHistory = async (limit = 50) => {
     try {
       //console.log("History requested")
-      const response = await fetch(`${API_URL}/sales/history?limit=${limit}`);
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/sales/history?limit=${limit}`);
       const data = await response.json();
       //console.log(data)
       if (data.success) {
@@ -250,418 +112,6 @@ const POSSystem = () => {
       console.error('Error cargando historial:', error);
     }
   };
-
-  /*
-  const loadSalesSummary = async (date = null) => {
-    try {
-      const url = date ? `${API_URL}/sales/summary?date=${date}` : `${API_URL}/sales/summary`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.success) {
-        setSalesSummary(data.data);
-      }
-    } catch (error) {
-      console.error('Error cargando resumen:', error);
-    }
-  };
-  */
-
-  // Generar código único basado en el nombre
-  const generateProductCode = (nombre) => {
-    if (!nombre) return '';
-
-    // Tomar las primeras 3 letras del nombre (sin espacios)
-    const cleanName = nombre.replace(/\s+/g, '').toUpperCase();
-    const prefix = cleanName.substring(0, 3);
-
-    // Generar 5 dígitos aleatorios
-    const randomNum = Math.floor(10000 + Math.random() * 90000);
-
-    return `${prefix}${randomNum}`;
-  };
-
-
-  // Agregar nuevo producto
-  const addNewProduct = async () => {
-    if (!newProduct.nombre || !newProduct.costo || !newProduct.precio1) {
-      showNotification('Por favor complete los campos obligatorios: Nombre, Costo y Precio', 'error');
-      return;
-    }
-
-    try {
-
-      const productData = {
-        codigo: newProduct.codigo || generateProductCode(newProduct.nombre),
-        nombre: newProduct.nombre,
-        cantidad: newProduct.unidad === 'unidad'
-          ? parseInt(newProduct.cantidad) || 0
-          : parseFloat(newProduct.cantidad) || 0.0,
-        costo: parseFloat(newProduct.costo),
-        precio_1: parseFloat(newProduct.precio1),
-        precio_2: newProduct.precio2 ? parseFloat(newProduct.precio2) : 0.0,
-        precio_3: newProduct.precio3 ? parseFloat(newProduct.precio3) : 0.0,
-        minStock: parseInt(newProduct.minStock) || 0,
-        unidad: newProduct.unidad || 'unidad',
-      };
-
-      const response = await fetch(`${API_URL}/inventory/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(productData)
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        showNotification(`Producto agregado exitosamente!\nCódigo: ${newProduct.codigo}`, 'success');
-        setNewProduct({
-          nombre: '',
-          codigo: '',
-          costo: '',
-          precio1: '',
-          precio2: '',
-          precio3: '',
-          cantidad: '',
-          minStock: '',
-          unidad: 'unidad',
-          hasPrecio2: false,
-          hasPrecio3: false
-        });
-        loadInventory();
-      } else {
-        showNotification(`Error al agregar producto: ${result.message}`, 'error');
-      }
-    } catch (error) {
-      console.error('Error agregando producto:', error);
-      showNotification(`Error al agregar producto: ${error}`, 'error');
-    }
-  };
-
-  // Agregar producto al carrito
-  const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-
-    if (product.cantidad === 0) {
-      alert('¡Producto sin stock!');
-      return;
-    }
-
-    if (existingItem) {
-      if (existingItem.cantidadVendida >= product.cantidad) {
-        alert('¡No hay suficiente stock!');
-        return;
-      }
-      setCart(cart.map(item =>
-        item.id === product.id
-          ? { ...item, cantidadVendida: item.cantidadVendida + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart,
-      {
-        ...product,
-        cantidadVendida: product.unidad == 'unidad' ? 1 : 0.01,
-        priceType: 'precio',
-        precioActual: product.precio
-      }]);
-    }
-  };
-
-  // Cambiar tipo de precio en el carrito
-  const changePriceType = (productId, newPriceType) => {
-    setCart(cart.map(item => {
-      if (item.id === productId) {
-        return {
-          ...item,
-          priceType: newPriceType,
-          precioActual: item[newPriceType]
-        };
-      }
-      return item;
-    }));
-  };
-
-  // Actualizar precio manualmente
-  const updateCartPrice = (productId, newPrice) => {
-    setCart(cart.map(item =>
-      item.id === productId
-        ? { ...item, precioActual: parseFloat(newPrice) || 0 }
-        : item
-    ));
-  };
-
-  // Actualizar cantidad de productos en carrito
-  const updateCartQuantity = (productId, delta) => {
-    const product = inventory.find(p => p.id === productId);
-    const cartItem = cart.find(item => item.id === productId);
-
-    const newQuantity = cartItem.cantidadVendida + delta;
-
-    if (newQuantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-
-    if (newQuantity > product.cantidad) {
-      alert('¡No hay suficiente stock!');
-      return;
-    }
-
-
-    setCart(cart.map(item =>
-      item.id === productId
-        ? { ...item, cantidadVendida: newQuantity }
-        : item
-    ));
-  };
-
-  // Updated function to handle empty inputs
-  const setCartQuantity = (productId, newQuantity) => {
-    const product = inventory.find(p => p.id === productId);
-
-    // Allow empty input (user is typing) - set to 0 temporarily
-    if (newQuantity === '' || newQuantity === null || newQuantity === undefined) {
-      setCart(cart.map(item =>
-        item.id === productId
-          ? { ...item, cantidadVendida: 0 }
-          : item
-      ));
-      return;
-    }
-
-    const quantity = parseFloat(newQuantity);
-
-    // If NaN, set to 0
-    if (isNaN(quantity)) {
-      setCart(cart.map(item =>
-        item.id === productId
-          ? { ...item, cantidadVendida: 0 }
-          : item
-      ));
-      return;
-    }
-
-    // Only remove if user explicitly sets negative (optional - you can remove this check)
-    if (quantity < 0) {
-      return; // Don't allow negative
-    }
-
-    // Check stock
-    if (quantity > product.cantidad) {
-      alert('¡No hay suficiente stock!');
-      // Set to max available instead of blocking
-      setCart(cart.map(item =>
-        item.id === productId
-          ? { ...item, cantidadVendida: product.cantidad }
-          : item
-      ));
-      return;
-    }
-
-    // Update normally
-    setCart(cart.map(item =>
-      item.id === productId
-        ? { ...item, cantidadVendida: quantity }
-        : item
-    ));
-  };
-
-  // Eliminar producto de carrito
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.id !== productId));
-  };
-
-  /*
-  const processSaleWithInvoice = async () => {
-    if (cart.length === 0) {
-      alert('El carrito está vacío');
-      return;
-    }
-
-    if (!clienteData.identificacion || !clienteData.razon_social || !clienteData.email) {
-      alert('Por favor complete todos los campos obligatorios del cliente:\n- Identificación\n- Razón Social\n- Email');
-      return;
-    }
-
-    setProcessingInvoice(true);
-    setInvoiceResult(null);
-
-    try {
-      const cartData = cart.map(item => ({
-        codigo: item.codigo,
-        cantidad_vendida: item.cantidadVendida,
-        nombre: item.nombre,
-        precio: item.precio
-      }));
-
-      const response = await fetch(`${API_URL}/sale-with-invoice-sri`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cart: cartData,
-          vendedor: vendedor,
-          cliente: clienteData
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const updatedInventory = inventory.map(item => {
-          const cartItem = cart.find(c => c.id === item.id);
-          if (cartItem) {
-            return {
-              ...item,
-              cantidad: item.cantidad - cartItem.cantidadVendida
-            };
-          }
-          return item;
-        });
-
-        setInventory(updatedInventory);
-        setInvoiceResult(result.invoice);
-
-        let message = `✅ FACTURA ELECTRÓNICA AUTORIZADA\n\n`;
-        message += `📄 Número: ${result.invoice.numero_factura}\n`;
-        message += `🔑 Autorización: ${result.invoice.numero_autorizacion}\n`;
-        message += `💰 Total: $${result.invoice.total.toFixed(2)}\n`;
-        message += `📅 Fecha: ${result.invoice.fecha_autorizacion}\n`;
-        message += `🌐 Ambiente: ${result.invoice.ambiente === 'PRODUCCION' ? 'Producción' : 'Pruebas'}\n`;
-
-        if (result.invoice.advertencias && result.invoice.advertencias.length > 0) {
-          message += '\n⚠️ Advertencias:\n';
-          result.invoice.advertencias.forEach(adv => {
-            message += `• ${adv}\n`;
-          });
-        }
-
-        alert(message);
-        setCart([]);
-        setReceivedMoney('');
-        setShowInvoiceModal(false);
-        resetClienteData();
-      } else {
-        let errorMessage = '❌ Error al procesar la factura\n\n';
-        errorMessage += result.message || 'Error desconocido';
-
-        if (result.details) {
-          errorMessage += '\n\nDetalles:\n';
-          if (Array.isArray(result.details)) {
-            result.details.forEach(detail => {
-              errorMessage += `• ${detail}\n`;
-            });
-          } else {
-            errorMessage += result.details;
-          }
-        }
-
-        alert(errorMessage);
-      }
-    } catch (error) {
-      console.error('Error en facturación:', error);
-      alert('❌ Error al procesar la factura electrónica:\n\n' + error.message);
-    } finally {
-      setProcessingInvoice(false);
-    }
-  };
-
-  const resetClienteData = () => {
-    setClienteData({
-      identificacion: '',
-      razon_social: '',
-      direccion: '',
-      email: '',
-      telefono: ''
-    });
-    setInvoiceResult(null);
-  };
-*/
-  // Procesar venta simple
-  const processSale = async () => {
-    if (cart.length === 0) {
-      showNotification('El carrito está vacío', 'error');
-      return;
-    }
-
-    setProcessingSale(true);
-
-    try {
-      const cartData = cart.map(item => ({
-        codigo: item.codigo,
-        cantidad_vendida: item.cantidadVendida,
-        nombre: item.nombre,
-        precio: item.precioActual || item.precio,
-        tipoPrecio: item.priceType
-      }));
-
-      const response = await fetch(`${API_URL}/sale`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cart: cartData,
-          vendedor: currentUser?.nombre
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const updatedInventory = inventory.map(item => {
-          const cartItem = cart.find(c => c.id === item.id);
-          if (cartItem) {
-            return {
-              ...item,
-              cantidad: item.cantidad - cartItem.cantidadVendida
-            };
-          }
-          return item;
-        });
-
-        setInventory(updatedInventory);
-        showNotification('¡Venta procesada exitosamente!', 'success');
-        setCart([]);
-        setReceivedMoney('');
-
-      }
-      else {
-        showNotification(result.error, 'error');
-      }
-
-    } catch (error) {
-      console.error('Error procesando venta:', error);
-      showNotification('Error al procesar la venta', 'error');
-    } finally {
-      setProcessingSale(false);
-    }
-  };
-
-  const calculateTotal = () => {
-    return cart.reduce(
-      (sum, item) =>
-        sum + (item.precioActual ?? item.precio) * item.cantidadVendida,
-      0
-    )
-  }
-
-  const calculateChange = () => {
-    const total = calculateTotal().toFixed(2);
-    const received = parseFloat(receivedMoney) || 0;
-    return received - total;
-  };
-
-  // Filtrar productos por búsqueda
-  const filteredInventory = searchTerm.trim() === ''
-    ? []
-    : inventory.filter(item =>
-      item.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.codigo.toLowerCase().includes(searchTerm.toLowerCase())
-    );
 
   // Filtrar ventas por fecha
   const filteredSalesHistory = salesHistory.filter(sale => {
@@ -684,7 +134,7 @@ const POSSystem = () => {
   // Comprobar si existe una autentificación de usuario 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/check`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/auth/check`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -692,7 +142,6 @@ const POSSystem = () => {
       if (data.authenticated) {
         setIsAuthenticated(true);
         setCurrentUser(data.user);
-        setVendedor(data.user.nombre || data.user.username);
         await loadInventory();
       }
     } catch (error) {
@@ -700,216 +149,37 @@ const POSSystem = () => {
     }
   };
 
-  // Inicio de sesión del usuario
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    setLoginError('');
-
-    try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(loginForm)
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setIsAuthenticated(true);
-        setCurrentUser(data.user);
-        setVendedor(data.user.nombre || data.user.username);
-        showNotification(`¡Bienvenido ${data.user.nombre || data.user.username}!`, 'success');
-        loadInventory();
-      } else {
-        setLoginError(data.message || 'Error al iniciar sesión');
-      }
-    } catch (error) {
-      setLoginError('Error de conexión. Intente nuevamente.');
-      console.error('Error en login:', error);
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  // Cierre de sesión del usuario
-  const handleLogout = async () => {
-    try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-
-      setIsAuthenticated(false);
-      setCurrentUser(null);
-      setCart([]);
-      setInventory([]);
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-    }
-  };
-
-  // Send picture sale 
-  const processPhotoSale = async (img) => {
-
-    console.log("Captured image:", img);
-    const formData = new FormData();
-    setProcessingPhotoSale(true);
-    
-    formData.append('image', img);
-    formData.append('vendedor', currentUser?.nombre);
-
-    try {
-      const response = await fetch(`${API_URL}/sale`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const updatedInventory = inventory.map(item => {
-          const cartItem = cart.find(c => c.id === item.id);
-          if (cartItem) {
-            return {
-              ...item,
-              cantidad: item.cantidad - cartItem.cantidadVendida
-            };
-          }
-          return item;
-        });
-
-        setInventory(updatedInventory);
-        showNotification('¡Venta procesada exitosamente!', 'success');
-        setCart([]);
-        setReceivedMoney('');
-      }
-      else {
-        showNotification(result.error, 'error');
-      }
-
-    } catch (error) {
-      //console.error('Error procesando venta:', error);
-      showNotification('Error al procesar la venta', 'error');
-    } finally {
-      setProcessingPhotoSale(false);
-    }
-
-  };
-
   return (
     <>
       {!isAuthenticated ? (
         <LoginScreen
-          handleLogin={handleLogin}
-          loginForm={loginForm}
-          setLoginForm={setLoginForm}
-          loginError={loginError}
-          isLoggingIn={isLoggingIn} />
+        setCurrentUser={setCurrentUser}
+        setIsAuthenticated={setIsAuthenticated}
+        showNotification={showNotification}
+        loadInventory={loadInventory}
+        />
 
       ) : (
+
         <div className="min-h-screen bg-gray-50">
-          {/* Notification Toast */}
           {notification && (
-            <div className="fixed top-4 right-4 z-50 animate-slide-in">
-              <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${notification.type === 'success'
-                ? 'bg-green-700 text-white'
-                : 'bg-red-700 text-white'
-                }`}>
-                {notification.type === 'success' ? (
-                  <Check size={24} className="shrink-0" />
-                ) : (
-                  <X size={24} className="shrink-0" />
-                )}
-                <p className="font-semibold">{notification.message}</p>
-                <button
-                  onClick={() => setNotification(null)}
-                  className="ml-2 hover:bg-white/20 rounded p-1"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-          )}
+            <NotificationToast
+              notification={notification}
+              setNotification={setNotification}
+            />)}
 
           {/* Header */}
-          <div className="bg-linear-to-r from-[#008cc8] to-[#005174] text-white p-4 sm:p-6 shadow-lg">
-            <div className="flex justify-between items-center">
-              {/* Title */}
-              <div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">
-                  Comercial TB
-                </h1>
-                <p className="text-blue-100 text-xs sm:text-sm mt-1">
-                  Gestión de Ventas e Inventario
-                </p>
-              </div>
-
-              {/* Desktop user section */}
-              <div className="hidden sm:flex items-center gap-4">
-                <div className="bg-white/20 px-3 py-2 rounded-lg">
-                  <p className="text-sm">
-                    <span className="font-semibold">
-                      {currentUser?.nombre || currentUser?.username}
-                    </span>
-                  </p>
-                  <p className="text-xs text-blue-100">
-                    {currentUser?.role}
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleLogout}
-                  className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2"
-                >
-                  <X size={18} />
-                  Cerrar Sesión
-                </button>
-              </div>
-
-              {/* Mobile menu button */}
-              <div className="sm:hidden relative">
-                <button
-                  onClick={() => setOpen(!open)}
-                  className="bg-white/20 p-2 rounded-lg"
-                >
-                  <User size={20} />
-                </button>
-
-                {/* Dropdown */}
-                {open && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white text-gray-800 rounded-lg shadow-lg overflow-hidden">
-
-                    <div className="px-4 py-3 border-b">
-                      <p className="text-sm font-semibold">
-                        {currentUser?.nombre || currentUser?.username}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {currentUser?.role}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
-                    >
-                      <X size={16} />
-                      Cerrar Sesión
-                    </button>
-
-                  </div>
-                )}
-              </div>
-
-            </div>
-          </div>
+          <Header
+            currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
+            setIsAuthenticated={setIsAuthenticated}
+            setCart={setCart}
+            setInventory={setInventory}
+          />
 
           {/* Tabs */}
-          <div className="bg-white shadow">
-            <div className="flex gap-1 px-6 overflow-x-auto">
+          <div className="bg-[#ffffff] shadow">
+            <div className="flex justify-center items-center gap-1 px-6 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('pos')}
                 className={`px-6 py-3 font-semibold transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'pos'
@@ -917,7 +187,6 @@ const POSSystem = () => {
                   : 'text-gray-600 hover:text-[#008cc8]'
                   }`}
               >
-                <ShoppingCart size={20} />
                 Caja
               </button>
               <button
@@ -927,7 +196,6 @@ const POSSystem = () => {
                   : 'text-gray-600 hover:text-[#008cc8]'
                   }`}
               >
-                <PackagePlus size={20} />
                 Inventario
               </button>
               <button
@@ -939,7 +207,6 @@ const POSSystem = () => {
                   : 'text-gray-600 hover:text-[#008cc8]'
                   }`}
               >
-                <Package size={20} />
                 Stock
               </button>
               <button
@@ -952,8 +219,7 @@ const POSSystem = () => {
                   : 'text-gray-600 hover:text-[#008cc8]'
                   }`}
               >
-                <History size={20} />
-                Historial de Ventas
+                Historial de ventas
               </button>
               <button
                 onClick={() => {
@@ -965,7 +231,6 @@ const POSSystem = () => {
                   : 'text-gray-600 hover:text-[#008cc8]'
                   }`}
               >
-                <CircleDollarSign size={20} />
                 Utilidades
               </button>
 
@@ -985,618 +250,32 @@ const POSSystem = () => {
           )}
 
           {/* Content */}
-          <div className="p-6">
-            {/* CAJA - Rediseñado */}
+          <div className="p-4">
+            {/* CAJA */}
             {activeTab === 'pos' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 h-[calc(100vh-210px)]">
-                {/* Búsqueda de Productos */}
-                <div className="bg-white rounded-lg shadow-lg flex flex-col">
-                  <div className="p-4">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">Productos</h2>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
-                        type="text"
-                        placeholder="Busca por nombre o codigo..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto p-4">
-                    {searchTerm.trim() === '' ? (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <div className="text-center">
-                          <Search size={48} className="mx-auto mb-2 opacity-50" />
-                          <p>Comienza a escribir para buscar productos</p>
-                        </div>
-                      </div>
-                    ) : filteredInventory.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <p>No se encontraron productos</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {filteredInventory.map(product => (
-                          <div
-                            key={product.id}
-                            onClick={() => addToCart(product)}
-                            className={`rounded-lg p-2 transition-all duration-150 
-                              ${product.cantidad === 0
-                                ? 'bg-gray-100 border-gray-100 cursor-not-allowed'
-                                : 'bg-white shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-md hover:border-[#008cc8]'
-                              }`}
-                          >
-                            <h3 className="font-semibold text-xs text-gray-800 truncate" title={product.nombre}>
-                              {product.nombre}
-                            </h3>
-                            <p className="text-xs text-gray-500 truncate">{product.codigo}</p>
-                            <p className="text-sm font-bold text-[#008cc8] mt-1">
-                              ${product.precio}
-                            </p>
-                            <p className={`text-xs mt-1 ${product.cantidad === 0 ? 'text-red-600' : 'text-gray-600'
-                              }`}>
-                              Stock: {product.unidad == 'unidad' ? product.cantidad : product.cantidad.toFixed(2)} {product.unidad}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Carrito de Venta */}
-                <div className="bg-white rounded-lg shadow-lg flex flex-col">
-                  <div className="p-4">
-                    <h2 className="text-xl font-bold text-gray-800">Caja</h2>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4">
-                    {cart.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <div className="text-center">
-                          <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
-                          <p>El carrito está vacío</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {/* Header row */}
-                        {/* Desktop Header */}
-                        <div className="hidden sm:grid grid-cols-12 gap-2 bg-gray-100 px-3 py-2 rounded-lg">
-                          <div className="col-span-4 text-xs font-medium text-gray-500 uppercase">Producto</div>
-                          <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</div>
-                          <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Precio</div>
-                          <div className="col-span-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</div>
-                        </div>
-
-                        {cart.map(item => {
-                          const hasTwoPrices = item.precio_2 !== undefined && item.precio_2 !== null && item.precio_2 > 0;
-
-                          return (
-                            <div key={item.id} className="bg-gray-100 p-3 rounded-lg">
-
-                              {/* ✅ MOBILE CARD */}
-                              <div className="sm:hidden space-y-2">
-
-                                {/* Product name + delete */}
-                                <div className="flex justify-between items-start">
-                                  <h3 className="font-semibold text-sm text-gray-800">
-                                    {item.nombre}
-                                  </h3>
-                                  <button
-                                    onClick={() => removeFromCart(item.id)}
-                                    className="p-1 text-[#bb1c49] hover:bg-red-50 rounded"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-
-                                {/* Quantity */}
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-gray-500">Cantidad</span>
-                                  <input
-                                    type="number"
-                                    value={item.cantidadVendida || ''}
-                                    placeholder="0"
-                                    step={item.unidad === 'unidad' ? "1" : '0.01'}
-                                    min="0"
-                                    onChange={(e) => setCartQuantity(item.id, e.target.value)}
-                                    onWheel={(e) => e.target.blur()}
-                                    className="w-24 text-center text-sm font-semibold bg-gray-50 border border-gray-300 rounded px-2 py-1"
-                                  />
-                                </div>
-
-                                {/* Price */}
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-gray-500">Precio</span>
-
-                                  {hasTwoPrices ? (
-                                    <select
-                                      value={item.priceType || 'precio'}
-                                      onChange={(e) => changePriceType(item.id, e.target.value)}
-                                      className="bg-white border border-gray-300 rounded px-2 py-1 text-xs"
-                                    >
-                                      <option value="precio">${item.precio?.toFixed(3)}</option>
-                                      {item.precio_2 > 0 && (
-                                        <option value="precio_2">${item.precio_2?.toFixed(3)}</option>
-                                      )}
-                                      {item.precio_3 > 0 && (
-                                        <option value="precio_3">${item.precio_3?.toFixed(3)}</option>
-                                      )}
-                                    </select>
-                                  ) : (
-                                    <span className="text-sm font-semibold">
-                                      ${item.precio?.toFixed(3)}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Subtotal */}
-                                <div className="flex justify-between items-center border-t pt-2">
-                                  <span className="text-xs text-gray-500">Subtotal</span>
-                                  <span className="text-sm font-bold text-gray-800">
-                                    ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* ✅ DESKTOP TABLE ROW */}
-                              <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
-
-                                <div className="col-span-4 min-w-0">
-                                  <h3 className="font-semibold text-sm text-gray-800 truncate">
-                                    {item.nombre}
-                                  </h3>
-                                </div>
-
-                                <div className="col-span-3 flex justify-center">
-                                  <input
-                                    type="number"
-                                    value={item.cantidadVendida || ''}
-                                    step={item.unidad === 'unidad' ? "1" : '0.01'}
-                                    min="0"
-                                    onChange={(e) => setCartQuantity(item.id, e.target.value)}
-                                    className="w-20 text-center text-sm bg-gray-50 border rounded px-2 py-1"
-                                  />
-                                </div>
-
-                                <div className="col-span-3 flex justify-center">
-                                  {hasTwoPrices ? (
-                                    <select
-                                      value={item.priceType || 'precio'}
-                                      onChange={(e) => changePriceType(item.id, e.target.value)}
-                                      className="text-xs border rounded px-2 py-1"
-                                    >
-                                      <option value="precio">${item.precio?.toFixed(3)}</option>
-                                      {item.precio_2 > 0 && (
-                                        <option value="precio_2">${item.precio_2?.toFixed(3)}</option>
-                                      )}
-                                      {item.precio_3 > 0 && (
-                                        <option value="precio_3">${item.precio_3?.toFixed(3)}</option>
-                                      )}
-                                    </select>
-                                  ) : (
-                                    <span className="text-sm font-semibold">
-                                      ${item.precio?.toFixed(3)}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="col-span-2 flex justify-end items-center gap-2">
-                                  <p className="text-sm font-bold text-gray-800">
-                                    ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
-                                  </p>
-
-                                  <button
-                                    onClick={() => removeFromCart(item.id)}
-                                    className="p-1 text-[#bb1c49] hover:bg-red-50 rounded"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Total y Pago */}
-                  <div className="p-4 space-y-3">
-                    <div className="h-px bg-gray-800 mx-auto"></div>
-                    <div className="flex justify-between items-center text-2xl font-semibold">
-                      <span>Total</span>
-                      <span className="text-[#2b2929]">$ {calculateTotal().toFixed(2)}</span>
-                    </div>
-
-                    {/* Dinero Recibido y Vuelto */}
-                    <div className="space-y-2">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Recibe
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={receivedMoney}
-                            onChange={(e) => setReceivedMoney(e.target.value)}
-                            placeholder="0"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-                            disabled={cart.length === 0}
-                          />
-                        </div>
-                      </div>
-
-                      {receivedMoney && parseFloat(receivedMoney) >= calculateTotal().toFixed(2) && calculateTotal().toFixed(2) > 0 && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-green-800">Vuelto</span>
-                            <span className="text-xl font-bold text-green-600">
-                              ${calculateChange().toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {receivedMoney && parseFloat(receivedMoney) < calculateTotal().toFixed(2) && calculateTotal().toFixed(2) > 0 && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-red-800">Falta:</span>
-                            <span className="text-xl font-bold text-red-600">
-                              ${(calculateTotal() - parseFloat(receivedMoney)).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2">
-                      <button
-                        onClick={processSale}
-                        disabled={cart.length === 0 || processingSale}
-                        className={`px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 
-                          ${cart.length === 0 || processingSale
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-[#32ace0] text-white hover:bg-[#007baf]'
-                          }`}
-                      >
-                        {processingSale ? (
-                          <>
-                            <Loader className="animate-spin" />
-                          </>
-                        ) : (
-                          <>
-                            Pagar
-                          </>
-                        )}
-                      </button>
-                      <CameraModal
-                        onCapture={(img) => {
-                          processPhotoSale(img);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <PosBox
+                inventory={inventory}
+                setInventory={setInventory}
+                currentUser={currentUser}
+                showNotification={showNotification}
+              />
             )}
 
             {/* INVENTARIO - Agregar Productos */}
             {activeTab === 'inventory-add' && (
-              <div className="max-w-3xl mx-auto">
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    Agregar Nuevo Producto
-                  </h2>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nombre <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newProduct.nombre}
-                        onChange={(e) => setNewProduct({ ...newProduct, nombre: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                        placeholder="Escriba el nombre del producto"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Cantidad Inicial
-                        </label>
-                        <input
-                          type="number"
-                          step={newProduct.unidad === 'unidad' ? "1" : "0.01"}
-                          value={newProduct.cantidad}
-                          onChange={(e) => setNewProduct({ ...newProduct, cantidad: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                          placeholder="0"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Stock Mínimo
-                        </label>
-                        <input
-                          type="number"
-                          step={newProduct.unidad === 'unidad' ? "1" : "0.01"}
-                          value={newProduct.minStock}
-                          onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Unidad de medida */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Unidad de Medida <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={newProduct.unidad || 'unidad'}
-                        onChange={(e) => setNewProduct({ ...newProduct, unidad: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                      >
-                        <option value="unidad">Unidad</option>
-                        <option value="libras">Libras</option>
-                        <option value="kg">Kilogramos</option>
-                        <option value="gramos">Gramos</option>
-                        <option value="litros">Litros</option>
-                        <option value="ml">Mililitros</option>
-                      </select>
-                    </div>
-
-                    {/* Costo */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Costo <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={newProduct.costo}
-                          onChange={(e) => setNewProduct({ ...newProduct, costo: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Precio 1 - obligatorio*/}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Precio <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={newProduct.precio1 || ''}
-                          onChange={(e) => setNewProduct({ ...newProduct, precio1: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                          placeholder="0"
-                        />
-                      </div>
-                      {newProduct.costo && newProduct.precio1 && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Ganancia:</span>
-                          <div className="text-right">
-                            <span className="text-lg font-bold text-blue-600">
-                              {(((parseFloat(newProduct.precio1) - parseFloat(newProduct.costo)) / parseFloat(newProduct.costo)) * 100).toFixed(1)}%
-                            </span>
-                            <span className="text-sm text-gray-500 ml-2">
-                              (${(parseFloat(newProduct.precio1) - parseFloat(newProduct.costo)).toFixed(2)})
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Precio 2 - Opcional */}
-                    <div className="block text-sm font-medium text-gray-700 mb-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="hasPrecio2"
-                          checked={newProduct.hasPrecio2 || false}
-                          onChange={(e) => setNewProduct({
-                            ...newProduct,
-                            hasPrecio2: e.target.checked,
-                            precio2: e.target.checked ? newProduct.precio2 : ''
-                          })}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-[#008cc8]"
-                        />
-                        <label htmlFor="hasPrecio2" className="text-sm font-semibold text-gray-700">
-                          Precio 2
-                        </label>
-                      </div>
-                      {newProduct.hasPrecio2 && (
-
-                        <div className="space-y-3 pl-4 border-l-2 border-blue-200">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={newProduct.precio2 || ''}
-                              onChange={(e) => setNewProduct({ ...newProduct, precio2: e.target.value })}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                              placeholder="0.00"
-                            />
-                          </div>
-                          {newProduct.costo && newProduct.precio2 && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex justify-between items-center">
-                              <span className="text-sm text-gray-600">Ganancia:</span>
-                              <div className="text-right">
-                                <span className="text-lg font-bold text-green-600">
-                                  {(((parseFloat(newProduct.precio2) - parseFloat(newProduct.costo)) / parseFloat(newProduct.costo)) * 100).toFixed(1)}%
-                                </span>
-                                <span className="text-sm text-gray-500 ml-2">
-                                  (${(parseFloat(newProduct.precio2) - parseFloat(newProduct.costo)).toFixed(2)})
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Precio 3 - Opcional */}
-                    <div className="block text-sm font-medium text-gray-700 mb-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="hasPrecio3"
-                          checked={newProduct.hasPrecio3 || false}
-                          onChange={(e) => setNewProduct({
-                            ...newProduct,
-                            hasPrecio3: e.target.checked,
-                            precio3: e.target.checked ? newProduct.precio3 : ''
-                          })}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-[#008cc8]"
-                        />
-                        <label htmlFor="hasPrecio3" className="text-sm font-semibold text-gray-700">
-                          Precio 3
-                        </label>
-                      </div>
-                      {newProduct.hasPrecio3 && (
-                        <div className="space-y-3 pl-4 border-l-2 border-purple-200">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={newProduct.precio3 || ''}
-                              onChange={(e) => setNewProduct({ ...newProduct, precio3: e.target.value })}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                              placeholder="0.00"
-                            />
-                          </div>
-                          {newProduct.costo && newProduct.precio3 && (
-                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 flex justify-between items-center">
-                              <span className="text-sm text-gray-600">Ganancia:</span>
-                              <div className="text-right">
-                                <span className="text-lg font-bold text-purple-600">
-                                  {(((parseFloat(newProduct.precio3) - parseFloat(newProduct.costo)) / parseFloat(newProduct.costo)) * 100).toFixed(1)}%
-                                </span>
-                                <span className="text-sm text-gray-500 ml-2">
-                                  (${(parseFloat(newProduct.precio3) - parseFloat(newProduct.costo)).toFixed(2)})
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Vista previa del código */}
-                    {newProduct.nombre && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <p className="text-sm text-gray-600">Código que se generará:</p>
-                        <p className="text-lg font-mono font-bold text-gray-800 mt-1">
-                          {newProduct.codigo}
-                        </p>
-                      </div>
-                    )}
-
-
-                    <div className="flex gap-3 pt-4">
-                      <button
-                        onClick={() => setNewProduct({
-                          nombre: '',
-                          costo: '',
-                          precio1: '',
-                          precio2: '',
-                          precio3: '',
-                          cantidad: '',
-                          minStock: '',
-                          unidad: 'unidad',
-                          hasPrecio2: false,
-                          hasPrecio3: false
-                        })}
-                        className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
-                      >
-                        Limpiar
-                      </button>
-                      <button
-                        onClick={addNewProduct}
-                        className="flex-1 px-4 py-3 bg-[#008cc8] text-white rounded-lg font-semibold hover:bg-[#057caf] transition flex items-center justify-center gap-2"
-                      >
-                        <Plus size={20} />
-                        Agregar Producto
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Inventory
+                loadInventory={loadInventory}
+                showNotification={showNotification} />
             )}
 
-            {/* STOCK */}
+            {/* STOCK - Revisar estado de productos*/}
             {activeTab === 'inventario' && (
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6">
-                  <h2 className="text-2xl font-semibold text-gray-800">Inventario de Stock</h2>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio 2</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {inventory.map(item => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm font-mono text-gray-600">{item.codigo}</td>
-                          <td className="px-6 py-4 text-sm text-gray-800">{item.nombre}</td>
-                          <td className="px-6 py-4 text-sm">
-                            <span className={`font-semibold ${item.cantidad === 0 ? 'text-red-600' :
-                              item.cantidad <= item.minStock ? 'text-yellow-600' :
-                                'text-green-600'
-                              }`}>
-                              {item.cantidad}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-800">${item.precio}</td>
-                          <td className="px-6 py-4 text-sm text-gray-800">
-                            {item.precio_2 ? `$${item.precio_2.toFixed(2)}` : "-"} </td>
-                          <td className="px-6 py-4 text-sm">
-                            {item.cantidad === 0 ? (
-                              <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">
-                                Sin Stock
-                              </span>
-                            ) : item.cantidad <= item.minStock ? (
-                              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold">
-                                Stock Bajo
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
-                                Normal
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <Stock
+                inventory={inventory}
+              />
             )}
 
-            {/* HISTORIAL con filtros */}
+            {/* HISTORIAL - Historial de ventas */}
             {activeTab === 'history' && (
               <div className="bg-white rounded-lg shadow">
                 <div className="p-6">
@@ -1687,7 +366,7 @@ const POSSystem = () => {
               </div>
             )}
 
-            {/* Utilidades con filtros */}
+            {/* UTILIDADES - Analysis de ventas y utilidades*/}
             {activeTab === 'profits' && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow p-6">
