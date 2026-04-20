@@ -1,9 +1,11 @@
-from concurrent.futures import ThreadPoolExecutor
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from google import genai
+from google.genai import types
+import json
 import uuid
 import time
 
@@ -326,6 +328,7 @@ class InventoryManager:
     def update_stock(self, product_code, quantity_sold, price_type):
         """Actualiza el stock después de una venta"""
         try:
+            print(f"Updating {product_code}")
             # Buscar el producto
             row = self._get_product_row(product_code)
 
@@ -805,6 +808,34 @@ class InventoryManager:
                 'error': str(e),
                 'traceback': traceback.format_exc()
             }
+
+class InferenceModel:
+    def __init__(self, API_KEY,):
+        self.client = genai.Client(api_key=API_KEY)
+
+    def infer_cart_from_image(self, image_file):
+        prompt = (
+            "You are a POS system. Detect sold products in the image that is in form of text "
+            "and return a JSON cart. Return ONLY valid JSON. Each item must include: "
+            "codigo, cantidadVendida(solo valor), nombre, precio y tipoPrecio con formato precio1 o precio2. "
+            "If unsure, infer best match"
+        )
+
+        config = types.GenerateContentConfig(response_mime_type="application/json")
+        
+        # Convert image to base64
+        image_bytes = image_file.read()
+        #base64_image = base64.b64encode(image_bytes).decode("utf-8")
+        image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+
+        import time
+
+        response = self.client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[image_part, prompt],
+            config=config
+                )
+        return json.loads(response.text)
 
 # Ejemplo de uso
 if __name__ == "__main__":

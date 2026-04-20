@@ -1,0 +1,53 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: pos-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - pos-network
+    restart: unless-stopped
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pos-backend
+    expose:
+      - "5000"
+    environment:
+      - FLASK_ENV=production
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/credentials.json
+      - GEMINI_API_KEY=GEMINI_API_KEY
+      - SECRET_KEY=6fcaf257e19623b92d75f55c40875c02df68d199f022ece30041025982e66664
+    volumes:
+      - ./secrets/credentials.json:/run/secrets/credentials.json:ro
+    networks:
+      - pos-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pos-frontend
+    expose:
+      - "80"
+    environment:
+      VITE_BACKEND_API_URL: /api
+    depends_on:
+      - backend
+    networks:
+      - pos-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+networks:
+  pos-network:
+    driver: bridge

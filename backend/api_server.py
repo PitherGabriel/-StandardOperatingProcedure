@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-from pos_backend import InventoryManager
+from pos_backend import InventoryManager, InferenceModel
 import time
 import os
 
@@ -29,9 +29,11 @@ def create_app():
 
     if not os.path.isfile(CREDS_PATH):
         raise RuntimeError(f"Credentials file not found: {CREDS_PATH}")
-
+    
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
     inventory = InventoryManager(CREDS_PATH, 'CentroComercialTB')
+    inference_engine = InferenceModel(GEMINI_API_KEY)
 
     @app.route('/api/auth/login', methods=['POST'])
     def login():
@@ -203,18 +205,62 @@ def create_app():
     def process_sale():
         """Procesar una venta"""
         try:
-            #start = time.time()
+            cart = []
+            vendedor = "Sistema"
 
-            cart = request.json.get('cart', [])
+            # Check what type of data is coming
+            if request.is_json: 
+                cart = request.json.get('cart', [])
+                vendedor = request.json.get('vendedor', 'Sistema')
+
+            else:
+                image = request.files.get('image')
+                if not image:
+                    return jsonify({
+                        'success': False,
+                        'error': 'No image provided'
+                    }), 400
+                # Convert image to cart 
+                cart = inference_engine.infer_cart_from_image(image)
+                vendedor = request.form.get('vendendor', 'Sistema')
+
             print(f"Carrito de compra : {cart}")
-
-            vendedor = request.json.get('vendedor', 'Sistema')
             result =  inventory.process_sale(cart, vendedor)
 
-            #elapsed = time.time() - start
-            #print(f"Venta procesada en {elapsed:.2f} segundos")
-
             return jsonify(result)
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        
+    
+    @app.route('/api/analyze-picture', methods=['POST'])
+    def analyze_picture():
+        """Procesar una venta"""
+        try:
+            cart = []
+
+            image = request.files.get('image')
+            if not image:
+                return jsonify({
+                    'success': False,
+                    'error': 'No image provided'
+                }), 400
+            
+            # Convert image to cart 
+            #cart = inference_engine.infer_cart_from_image(image)
+            # dumb cart
+            cart = [{
+                'cantidadVendida': 1,
+                'codigo': "POL49771",
+                'nombre': "pollo",
+                'precio': 1.5,
+                'tipoPrecio': "precio1"
+            }]
+            print(f"Carrito de compra : {cart}")
+
+            return jsonify({
+                'success': True,
+                'cart': cart})
+        
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
