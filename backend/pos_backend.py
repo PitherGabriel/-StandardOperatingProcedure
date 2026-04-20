@@ -817,7 +817,7 @@ class InferenceModel:
         prompt = (
             "You are a POS system. Detect sold products in the image that is in form of text "
             "and return a JSON cart. Return ONLY valid JSON. Each item must include: "
-            "codigo, cantidad_vendida, nombre, precio y tipoPrecio con formato precio1 o precio2. "
+            "codigo, cantidadVendida(solo valor), nombre, precio y tipoPrecio con formato precio1 o precio2. "
             "If unsure, infer best match"
         )
 
@@ -827,6 +827,9 @@ class InferenceModel:
         image_bytes = image_file.read()
         #base64_image = base64.b64encode(image_bytes).decode("utf-8")
         image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+
+        import time
+
         response = self.client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[image_part, prompt],

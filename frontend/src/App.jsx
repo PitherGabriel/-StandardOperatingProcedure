@@ -179,7 +179,7 @@ const POSSystem = () => {
 
           {/* Tabs */}
           <div className="bg-[#ffffff] shadow">
-            <div className="flex justify-center items-center gap-1 px-6 overflow-x-auto">
+            <div className="flex sm:justify-center items-center gap-1 px-6 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('pos')}
                 className={`px-6 py-3 font-semibold transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'pos'

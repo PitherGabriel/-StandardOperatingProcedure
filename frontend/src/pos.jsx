@@ -38,7 +38,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
             setCart([...cart,
             {
                 ...product,
-                cantidadVendida: product.unidad == 'unidad' ? 1 : 0.01,
+                cantidadVendida: product.unidad == 'unidad' ? 1 : 1,
                 priceType: 'precio',
                 precioActual: product.precio
             }]);
@@ -196,55 +196,31 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
         }
     };
 
-
-    // Procesar venta por medio de foto 
-    const processPhotoSale = async (img) => {
-
-        console.log("Captured image:", img);
+    const processPhotoSale = async (img, onResult) => {
         const formData = new FormData();
-        setProcessingPhotoSale(true);
-
         formData.append('image', img);
-        formData.append('vendedor', currentUser?.nombre);
-
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/sale`, {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/analyze-picture`, {
                 method: 'POST',
                 body: formData,
             });
 
+            if (!response.ok) {
+                const errorBody = await response.text();
+                console.error('Backend error body:', errorBody);
+                throw new Error(`Error del servidor: ${response.status} - ${errorBody}`);
+            }
+
             const result = await response.json();
-
             if (result.success) {
-                const updatedInventory = inventory.map(item => {
-                    const cartItem = cart.find(c => c.id === item.id);
-                    if (cartItem) {
-                        return {
-                            ...item,
-                            cantidad: item.cantidad - cartItem.cantidadVendida
-                        };
-                    }
-                    return item;
-                });
-
-                setInventory(updatedInventory);
-                showNotification('¡Venta procesada exitosamente!', 'success');
-                setCart([]);
-                setReceivedMoney('');
+                onResult?.(result.cart); // pass result back to CameraModal
             }
-            else {
-                showNotification(result.error, 'error');
-            }
-
         } catch (error) {
-            //console.error('Error procesando venta:', error);
-            showNotification('Error al procesar la venta', 'error');
-        } finally {
-            setProcessingPhotoSale(false);
+            console.error('Error al analizar foto:', error);
+            showNotification('Error al analizar foto', 'error');
+            throw error; // re-throw so CameraModal catches it and goes back to preview
         }
-
     };
-
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-210px)]">
@@ -252,7 +228,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
             <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[45vh] lg:h-full">
                 {/* Fixed header - never shrinks */}
                 <div className="p-4 shrink-0">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">Productos</h2>
+                    <h2 className="text-xl sm:text-small font-bold text-gray-800 mb-4">Productos</h2>
                     <div className="relative">
                         <Search className="absolute left-3 top-3 text-gray-400" size={20} />
                         <input
@@ -301,11 +277,6 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                                     {/* Price */}
                                     <span className="text-sm font-bold text-[#008cc8] shrink-0">
                                         ${product.precio}
-                                    </span>
-
-                                    {/* Stock */}
-                                    <span className={`text-xs shrink-0 w-24 text-right ${product.cantidad === 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                                        Stock: {product.unidad === 'unidad' ? product.cantidad : product.cantidad.toFixed(2)} {product.unidad}
                                     </span>
 
                                     {/* Add button */}
@@ -359,7 +330,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                                 return (
                                     <div key={item.id} className="bg-gray-100 p-3 rounded-lg">
 
-                                        {/* ✅ MOBILE CARD */}
+                                        {/* MOBILE CARD */}
                                         <div className="sm:hidden space-y-2">
 
                                             {/* Product name + delete */}
@@ -424,7 +395,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                                             </div>
                                         </div>
 
-                                        {/* ✅ DESKTOP TABLE ROW */}
+                                        {/* DESKTOP TABLE ROW */}
                                         <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
 
                                             <div className="col-span-4 min-w-0">
@@ -532,23 +503,46 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                         )}
                     </div>
 
+                    {/* Processing overlay */}
+                    {processingSale && (
+                        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-6 px-8">
+                            <div className="text-center">
+                                <p className="text-white text-xl font-semibold">Procesando venta</p>
+                                <p className="text-white/60 text-sm mt-2">Por favor espera un momento</p>
+                            </div>
+                            <div className="flex gap-2">
+                                {[0, 1, 2].map(i => (
+                                    <div
+                                        key={i}
+                                        className="w-2 h-2 rounded-full bg-[#008cc8] animate-bounce"
+                                        style={{ animationDelay: `${i * 0.15}s` }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Buttons */}
                     <div className="flex items-center gap-2">
                         <button
                             onClick={processSale}
                             disabled={cart.length === 0 || processingSale}
                             className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2 
-                          ${cart.length === 0 || processingSale
+                                ${cart.length === 0 || processingSale
                                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     : 'bg-[#1d8a02] text-white hover:bg-[#006b00]'
                                 }`}
                         >
-                            {processingSale ? <Loader className="animate-spin" /> : 'Pagar'}
-
+                            Pagar
                         </button>
                         <div className='flex-1'>
                             <CameraModal
-                                onCapture={(img) => {
-                                    processPhotoSale(img);
+                                showNotification={showNotification}
+                                currentUser={currentUser}
+                                inventory={inventory}
+                                setInventory={setInventory}
+                                onCapture={async (file, onResult) => {
+                                    await processPhotoSale(file, onResult);
                                 }}
                             />
                         </div>

@@ -230,6 +230,39 @@ def create_app():
             return jsonify(result)
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+        
+    
+    @app.route('/api/analyze-picture', methods=['POST'])
+    def analyze_picture():
+        """Procesar una venta"""
+        try:
+            cart = []
+
+            image = request.files.get('image')
+            if not image:
+                return jsonify({
+                    'success': False,
+                    'error': 'No image provided'
+                }), 400
+            
+            # Convert image to cart 
+            #cart = inference_engine.infer_cart_from_image(image)
+            # dumb cart
+            cart = [{
+                'cantidadVendida': 1,
+                'codigo': "POL49771",
+                'nombre': "pollo",
+                'precio': 1.5,
+                'tipoPrecio': "precio1"
+            }]
+            print(f"Carrito de compra : {cart}")
+
+            return jsonify({
+                'success': True,
+                'cart': cart})
+        
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/sales/history', methods=['GET'])
     def get_sales_history():
