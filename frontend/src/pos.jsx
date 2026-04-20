@@ -1,5 +1,5 @@
 import React, { useState, useEffect, forwardRef } from 'react';
-import { ShoppingCart, Trash2, Search, Loader, Plus } from 'lucide-react';
+import { ShoppingCart, Trash2, Search, Loader, Plus, DollarSign } from 'lucide-react';
 import CameraModal from './camera';
 
 export default function PosBox({ inventory, setInventory, currentUser, showNotification }) {
@@ -271,11 +271,14 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                                         <span className="font-semibold text-sm text-gray-800 truncate" title={product.nombre}>
                                             {product.nombre}
                                         </span>
-                                        <span className="text-xs text-gray-400">{product.codigo}</span>
+                                        <span className="text-xs text-gray-500">{product.codigo}</span>
+                                        <span className="text-xs text-gray-500 shrink-0">
+                                            Inventario: {product.cantidad} {product.unidad}
+                                        </span>
                                     </div>
 
                                     {/* Price */}
-                                    <span className="text-sm font-bold text-[#008cc8] shrink-0">
+                                    <span className="flex items-center text-sm font-bold text-[#0075a7] shrink-0">
                                         ${product.precio}
                                     </span>
 
@@ -283,7 +286,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                                     <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold shrink-0
                             ${product.cantidad === 0
                                             ? 'bg-gray-200 text-gray-400'
-                                            : 'bg-[#008cc8] text-white'
+                                            : 'bg-[#0075a7] text-white'
                                         }`}>
                                         <Plus size={14} />
                                         <span>Añadir</span>
