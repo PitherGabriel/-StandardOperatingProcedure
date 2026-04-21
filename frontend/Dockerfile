@@ -11,6 +11,10 @@ RUN npm install
 
 # Copiar el resto del código
 COPY . .
+
+ARG VITE_BACKEND_API_URL=/api
+ENV VITE_BACKEND_API_URL=$VITE_BACKEND_API_URL
+
 RUN npm run build
 
 # ---------- Production stage ----------
