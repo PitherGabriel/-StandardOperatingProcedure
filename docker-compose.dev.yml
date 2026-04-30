@@ -12,8 +12,8 @@ services:
       - FLASK_DEBUG=1
       - FLASK_APP=api_server.py  # change to your main file
       - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/credentials.json
-      - GEMINI_API_KEY=GEMINI_API_KEY
-      - SECRET_KEY=6fcaf257e19623b92d75f55c40875c02df68d199f022ece30041025982e66664
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ./backend:/app  # hot reload
       - ./secrets/credentials.json:/run/secrets/credentials.json:ro
