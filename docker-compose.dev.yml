@@ -6,7 +6,7 @@ services:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro  # different nginx config for dev
 
   backend:
-    command: flask run --host=0.0.0.0 --port=5000 --debug
+    command: uv run flask run --host=0.0.0.0 --port=5000 --debug
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
