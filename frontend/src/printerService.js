@@ -6,18 +6,17 @@ const CMD = {
   ALIGN_CENTER:  [0x1B, 0x61, 0x01],
   BOLD_ON:       [0x1B, 0x45, 0x01],
   BOLD_OFF:      [0x1B, 0x45, 0x00],
-  DOUBLE_WH:     [0x1D, 0x21, 0x11], // double width + height (business name)
-  DOUBLE_H:      [0x1D, 0x21, 0x01], // double height only, same width (TOTAL row)
+  DOUBLE_WH:     [0x1D, 0x21, 0x11],
+  DOUBLE_H:      [0x1D, 0x21, 0x01],
   NORMAL_SIZE:   [0x1D, 0x21, 0x00],
   CHARSET_PC850: [0x1B, 0x74, 0x02],
-  BAR_HEIGHT:    [0x1D, 0x68, 0x50], // 80 dots
+  BAR_HEIGHT:    [0x1D, 0x68, 0x50],
   BAR_WIDTH:     [0x1D, 0x77, 0x02],
   BAR_HRI_BELOW: [0x1D, 0x48, 0x02],
   LF:            [0x0A],
   CUT:           [0x1D, 0x56, 0x00],
 };
 
-// PC850 (Latin-1 Multilingual) byte values for Spanish characters
 const PC850 = {
   'é': 0x82, 'â': 0x83, 'à': 0x85, 'ç': 0x87, 'ê': 0x88,
   'è': 0x8A, 'î': 0x8C, 'ì': 0x8D, 'É': 0x90, 'ô': 0x93,
@@ -32,7 +31,7 @@ function encode(text) {
   for (const ch of text) {
     if (PC850[ch] !== undefined) bytes.push(PC850[ch]);
     else if (ch.charCodeAt(0) < 128) bytes.push(ch.charCodeAt(0));
-    else bytes.push(0x3F); // '?' for unmapped chars
+    else bytes.push(0x3F);
   }
   return new Uint8Array(bytes);
 }
@@ -50,6 +49,10 @@ function fmtQty(qty) {
   return parseFloat(qty.toFixed(2)).toString();
 }
 
+// Accepts "0x04B8", "1208", or plain number — all resolve correctly
+const VENDOR_ID  = Number(import.meta.env.VITE_PRINTER_VENDOR_ID)  || 0;
+const PRODUCT_ID = Number(import.meta.env.VITE_PRINTER_PRODUCT_ID) || 0;
+
 export function generateSaleId() {
   const d = new Date();
   const date = d.toISOString().slice(0, 10).replace(/-/g, '');
@@ -58,61 +61,94 @@ export function generateSaleId() {
 }
 
 export class PrinterService {
-  #port = null;
-  #writer = null;
+  #device = null;
+  #interfaceNumber = null;
+  #endpointNumber = null;
 
   isSupported() {
-    return 'serial' in navigator;
+    return 'usb' in navigator;
   }
 
   isConnected() {
-    return this.#port !== null;
+    return this.#device !== null;
   }
 
   async tryAutoConnect() {
     if (!this.isSupported()) return false;
     try {
-      const ports = await navigator.serial.getPorts();
-      if (!ports.length) return false;
-      this.#port = ports[0];
-      await this.#port.open({ baudRate: 9600 });
-      this.#writer = this.#port.writable.getWriter();
+      const devices = await navigator.usb.getDevices();
+      if (!devices.length) return false;
+      const device = (VENDOR_ID && PRODUCT_ID)
+        ? devices.find(d => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID)
+        : devices[0];
+      if (!device) return false;
+      this.#device = device;
+      await this.#openDevice();
       return true;
     } catch {
-      this.#port = null;
-      this.#writer = null;
+      this.#device = null;
+      this.#interfaceNumber = null;
+      this.#endpointNumber = null;
       return false;
     }
   }
 
   async connect() {
     if (!this.isSupported())
-      throw new Error('Web Serial API no disponible. Usa Chrome o Edge.');
-    this.#port = await navigator.serial.requestPort();
-    await this.#port.open({ baudRate: 9600 });
-    this.#writer = this.#port.writable.getWriter();
+      throw new Error('WebUSB no disponible. Usa Chrome o Edge.');
+    // If VID/PID configured, filter to exact printer; otherwise show all USB printers
+    const filters = (VENDOR_ID && PRODUCT_ID)
+      ? [{ vendorId: VENDOR_ID, productId: PRODUCT_ID }]
+      : [{ classCode: 0x07 }]; // USB Printer class
+    this.#device = await navigator.usb.requestDevice({ filters });
+    await this.#openDevice();
+  }
+
+  async #openDevice() {
+    await this.#device.open();
+    if (this.#device.configuration === null) {
+      await this.#device.selectConfiguration(1);
+    }
+    // Walk interfaces to find the bulk OUT endpoint
+    outer: for (const iface of this.#device.configuration.interfaces) {
+      for (const alt of iface.alternates) {
+        for (const ep of alt.endpoints) {
+          if (ep.direction === 'out' && ep.type === 'bulk') {
+            this.#interfaceNumber = iface.interfaceNumber;
+            this.#endpointNumber = ep.endpointNumber;
+            break outer;
+          }
+        }
+      }
+    }
+    if (this.#endpointNumber === null) {
+      await this.#device.close();
+      this.#device = null;
+      throw new Error('No se encontró endpoint bulk OUT en la impresora.');
+    }
+    await this.#device.claimInterface(this.#interfaceNumber);
   }
 
   async disconnect() {
     try {
-      if (this.#writer) {
-        this.#writer.releaseLock();
-        this.#writer = null;
-      }
-      if (this.#port) {
-        await this.#port.close();
+      if (this.#device) {
+        if (this.#interfaceNumber !== null)
+          await this.#device.releaseInterface(this.#interfaceNumber);
+        await this.#device.close();
       }
     } finally {
-      this.#port = null;
+      this.#device = null;
+      this.#interfaceNumber = null;
+      this.#endpointNumber = null;
     }
   }
 
   async #send(bytes) {
-    await this.#writer.write(new Uint8Array(bytes));
+    await this.#device.transferOut(this.#endpointNumber, new Uint8Array(bytes));
   }
 
   async #line(text) {
-    await this.#writer.write(encode(text + '\n'));
+    await this.#device.transferOut(this.#endpointNumber, encode(text + '\n'));
   }
 
   async printReceipt(sale, biz) {
