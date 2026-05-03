@@ -21,10 +21,14 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev 
+      dockerfile: Dockerfile.dev
     environment:
       - NODE_ENV=development
       - VITE_BACKEND_API_URL=/api
+      - VITE_BUSINESS_NAME=${VITE_BUSINESS_NAME}
+      - VITE_BUSINESS_RUC=${VITE_BUSINESS_RUC}
+      - VITE_BUSINESS_ADDRESS=${VITE_BUSINESS_ADDRESS}
+      - VITE_PRINT_BRIDGE_URL=${VITE_PRINT_BRIDGE_URL}
     volumes:
       - ./frontend/src:/app/src
     expose:
