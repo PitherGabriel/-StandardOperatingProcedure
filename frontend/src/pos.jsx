@@ -608,6 +608,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
         {completedSale && (
             <PostSaleModal
                 sale={completedSale}
+                biz={BUSINESS}
                 connected={printer.connected}
                 printing={printer.printing}
                 error={printer.error}

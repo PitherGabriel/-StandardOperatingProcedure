@@ -9,5 +9,5 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   -e GOARCH=amd64 \
   -e CGO_ENABLED=0 \
   golang:alpine \
-  go build -o bridge.exe .
+  go build -ldflags="-H windowsgui" -o bridge.exe .
 echo "Done → print_bridge/bridge.exe"

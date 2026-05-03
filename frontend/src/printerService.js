@@ -80,7 +80,7 @@ function buildReceipt(sale, biz) {
   // ── Items ──────────────────────────────────
   for (const item of sale.items) {
     const subtotal = (item.price * item.qty).toFixed(2);
-    b.text(`${item.name} (${item.code})`.slice(0, LINE_WIDTH));
+    b.text(`${item.name}`.slice(0, LINE_WIDTH));
     const left = `  ${fmtQty(item.qty)} ${item.unit}  x  $${item.price.toFixed(3)}`;
     b.text(twoCol(left, `$${subtotal}`));
     b.text(dots());

@@ -1,7 +1,9 @@
 import { CheckCircle, Printer, X } from 'lucide-react';
+import ReceiptPreview from './ReceiptPreview';
 
 export default function PostSaleModal({
   sale,
+  biz,
   connected,
   printing,
   error,
@@ -12,10 +14,10 @@ export default function PostSaleModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center px-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+      <div className="bg-gray-100 rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-5 py-4 bg-white rounded-t-xl border-b border-gray-200">
           <div className="flex items-center gap-2 text-green-600">
             <CheckCircle size={22} />
             <span className="font-bold text-lg">¡Venta completada!</span>
@@ -25,37 +27,16 @@ export default function PostSaleModal({
           </button>
         </div>
 
-        {/* Sale summary */}
-        <div className="bg-gray-50 rounded-lg p-3 space-y-1">
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>{sale.items.length} producto{sale.items.length !== 1 ? 's' : ''}</span>
-            <span className="font-mono text-xs">{sale.saleId}</span>
-          </div>
-          <div className="flex justify-between font-bold text-xl">
-            <span>Total</span>
-            <span>$ {sale.total.toFixed(2)}</span>
-          </div>
-          {sale.received > 0 && (
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Recibido</span>
-              <span>$ {sale.received.toFixed(2)}</span>
-            </div>
-          )}
-          {sale.change > 0 && (
-            <div className="flex justify-between text-sm font-semibold text-green-600">
-              <span>Cambio</span>
-              <span>$ {sale.change.toFixed(2)}</span>
-            </div>
-          )}
+        {/* Receipt preview */}
+        <div className="flex-1 overflow-y-auto py-5 flex justify-center">
+          <ReceiptPreview sale={sale} biz={biz} />
         </div>
 
-        {/* Printer section */}
-        {isSupported && (
-          <div className="space-y-2">
-            {error && (
-              <p className="text-red-500 text-xs px-1">{error}</p>
-            )}
-            {!connected ? (
+        {/* Actions */}
+        <div className="px-5 py-4 bg-white rounded-b-xl border-t border-gray-200 space-y-2">
+          {error && <p className="text-red-500 text-xs">{error}</p>}
+          {isSupported && (
+            !connected ? (
               <button
                 onClick={onConnect}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition"
@@ -75,17 +56,15 @@ export default function PostSaleModal({
                 <Printer size={17} />
                 {printing ? 'Imprimiendo...' : 'Imprimir Recibo'}
               </button>
-            )}
-          </div>
-        )}
-
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="w-full px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition font-medium"
-        >
-          Cerrar
-        </button>
+            )
+          )}
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition font-medium"
+          >
+            Cerrar
+          </button>
+        </div>
 
       </div>
     </div>
