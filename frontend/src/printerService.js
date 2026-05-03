@@ -163,7 +163,7 @@ export class PrinterService {
       });
     } catch {
       this.#connected = false;
-      throw new Error('Bridge desconectado — verifica que bridge.py esté corriendo');
+      throw new Error('Bridge desconectado — verifica que bridge.exe esté corriendo');
     }
     if (!res.ok) {
       const { error } = await res.json().catch(() => ({ error: 'Error desconocido' }));
