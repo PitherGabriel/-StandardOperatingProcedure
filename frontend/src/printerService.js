@@ -26,14 +26,28 @@ const PC850 = {
   'Á': 0xB5, 'Í': 0xD6, 'Ó': 0xE0, 'Ú': 0xE9,
 };
 
-function encode(text) {
-  const bytes = [];
-  for (const ch of text) {
-    if (PC850[ch] !== undefined) bytes.push(PC850[ch]);
-    else if (ch.charCodeAt(0) < 128) bytes.push(ch.charCodeAt(0));
-    else bytes.push(0x3F);
+const BRIDGE = (import.meta.env.VITE_PRINT_BRIDGE_URL || 'http://localhost:6543').replace(/\/$/, '');
+
+// ── Byte buffer ────────────────────────────────────────────────────────────
+class ByteBuffer {
+  #buf = [];
+
+  cmd(...arrays) {
+    for (const arr of arrays) this.#buf.push(...arr);
+    return this;
   }
-  return new Uint8Array(bytes);
+
+  text(str) {
+    for (const ch of str + '\n') {
+      const b = PC850[ch];
+      if (b !== undefined) this.#buf.push(b);
+      else if (ch.charCodeAt(0) < 128) this.#buf.push(ch.charCodeAt(0));
+      else this.#buf.push(0x3F);
+    }
+    return this;
+  }
+
+  toUint8Array() { return new Uint8Array(this.#buf); }
 }
 
 function twoCol(left, right, width = LINE_WIDTH) {
@@ -41,17 +55,66 @@ function twoCol(left, right, width = LINE_WIDTH) {
   return left.slice(0, maxLeft).padEnd(maxLeft) + right;
 }
 
-function dots(width = LINE_WIDTH) {
-  return '.'.repeat(width);
-}
+function dots(width = LINE_WIDTH) { return '.'.repeat(width); }
 
-function fmtQty(qty) {
-  return parseFloat(qty.toFixed(2)).toString();
-}
+function fmtQty(qty) { return parseFloat(qty.toFixed(2)).toString(); }
 
-// Accepts "0x04B8", "1208", or plain number — all resolve correctly
-const VENDOR_ID  = Number(import.meta.env.VITE_PRINTER_VENDOR_ID)  || 0;
-const PRODUCT_ID = Number(import.meta.env.VITE_PRINTER_PRODUCT_ID) || 0;
+function buildReceipt(sale, biz) {
+  const b = new ByteBuffer();
+
+  b.cmd(CMD.INIT, CMD.CHARSET_PC850);
+
+  // ── Header ─────────────────────────────────
+  b.cmd(CMD.ALIGN_CENTER, CMD.BOLD_ON, CMD.DOUBLE_WH).text(biz.name);
+  b.cmd(CMD.NORMAL_SIZE, CMD.BOLD_OFF);
+  b.text(`RUC: ${biz.ruc}`);
+  b.text(biz.address);
+  b.text(dots());
+
+  // ── Sale info ──────────────────────────────
+  b.cmd(CMD.ALIGN_LEFT);
+  b.text(`Fecha:   ${sale.date}   ${sale.time}`);
+  b.text(`Cajero:  ${sale.cajero}`);
+  b.text(dots());
+
+  // ── Items ──────────────────────────────────
+  for (const item of sale.items) {
+    const subtotal = (item.price * item.qty).toFixed(2);
+    b.text(`${item.name} (${item.code})`.slice(0, LINE_WIDTH));
+    const left = `  ${fmtQty(item.qty)} ${item.unit}  x  $${item.price.toFixed(3)}`;
+    b.text(twoCol(left, `$${subtotal}`));
+    b.text(dots());
+  }
+
+  // ── Totals ─────────────────────────────────
+  b.text(twoCol('Subtotal:', `$ ${sale.total.toFixed(2)}`));
+  b.text(dots());
+  b.cmd(CMD.BOLD_ON, CMD.DOUBLE_H).text(twoCol('TOTAL:', `$ ${sale.total.toFixed(2)}`));
+  b.cmd(CMD.NORMAL_SIZE, CMD.BOLD_OFF);
+  b.text(twoCol('Recibido:', `$ ${sale.received.toFixed(2)}`));
+  b.text(twoCol('Cambio:', `$ ${sale.change.toFixed(2)}`));
+  b.text(dots());
+
+  // ── Payment ────────────────────────────────
+  b.text(twoCol('EFECTIVO', 'PAGADO'));
+  b.text(dots());
+
+  // ── Footer ─────────────────────────────────
+  b.cmd(CMD.ALIGN_CENTER, CMD.LF, CMD.BOLD_ON);
+  b.text('¡Gracias por su compra!');
+  b.cmd(CMD.BOLD_OFF, CMD.LF);
+
+  // ── Barcode (Code128) ──────────────────────
+  b.cmd(CMD.BAR_HEIGHT, CMD.BAR_WIDTH, CMD.BAR_HRI_BELOW);
+  const idBytes = Array.from(sale.saleId).map(c => c.charCodeAt(0));
+  b.cmd([0x1D, 0x6B, 0x49, idBytes.length, ...idBytes]);
+  b.cmd(CMD.LF, CMD.LF, CMD.LF);
+
+  // ── Cut ────────────────────────────────────
+  b.cmd(CMD.CUT);
+
+  return b.toUint8Array();
+}
 
 export function generateSaleId() {
   const d = new Date();
@@ -61,165 +124,50 @@ export function generateSaleId() {
 }
 
 export class PrinterService {
-  #device = null;
-  #interfaceNumber = null;
-  #endpointNumber = null;
+  #connected = false;
 
-  isSupported() {
-    return 'usb' in navigator;
-  }
+  isSupported() { return true; }
 
-  isConnected() {
-    return this.#device !== null;
-  }
+  isConnected() { return this.#connected; }
 
   async tryAutoConnect() {
-    if (!this.isSupported()) return false;
     try {
-      const devices = await navigator.usb.getDevices();
-      if (!devices.length) return false;
-      const device = (VENDOR_ID && PRODUCT_ID)
-        ? devices.find(d => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID)
-        : devices[0];
-      if (!device) return false;
-      this.#device = device;
-      await this.#openDevice();
-      return true;
+      const res = await fetch(`${BRIDGE}/health`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      this.#connected = res.ok;
     } catch {
-      this.#device = null;
-      this.#interfaceNumber = null;
-      this.#endpointNumber = null;
-      return false;
+      this.#connected = false;
     }
+    return this.#connected;
   }
 
   async connect() {
-    if (!this.isSupported())
-      throw new Error('WebUSB no disponible. Usa Chrome o Edge.');
-    // If VID/PID configured, filter to exact printer; otherwise show all USB printers
-    const filters = (VENDOR_ID && PRODUCT_ID)
-      ? [{ vendorId: VENDOR_ID, productId: PRODUCT_ID }]
-      : [{ classCode: 0x07 }]; // USB Printer class
-    this.#device = await navigator.usb.requestDevice({ filters });
-    await this.#openDevice();
-  }
-
-  async #openDevice() {
-    await this.#device.open();
-    if (this.#device.configuration === null) {
-      await this.#device.selectConfiguration(1);
-    }
-    // Walk interfaces to find the bulk OUT endpoint
-    outer: for (const iface of this.#device.configuration.interfaces) {
-      for (const alt of iface.alternates) {
-        for (const ep of alt.endpoints) {
-          if (ep.direction === 'out' && ep.type === 'bulk') {
-            this.#interfaceNumber = iface.interfaceNumber;
-            this.#endpointNumber = ep.endpointNumber;
-            break outer;
-          }
-        }
-      }
-    }
-    if (this.#endpointNumber === null) {
-      await this.#device.close();
-      this.#device = null;
-      throw new Error('No se encontró endpoint bulk OUT en la impresora.');
-    }
-    await this.#device.claimInterface(this.#interfaceNumber);
+    const ok = await this.tryAutoConnect();
+    if (!ok) throw new Error(`Bridge no disponible en ${BRIDGE} — ejecuta bridge.py en Windows`);
   }
 
   async disconnect() {
-    try {
-      if (this.#device) {
-        if (this.#interfaceNumber !== null)
-          await this.#device.releaseInterface(this.#interfaceNumber);
-        await this.#device.close();
-      }
-    } finally {
-      this.#device = null;
-      this.#interfaceNumber = null;
-      this.#endpointNumber = null;
-    }
-  }
-
-  async #send(bytes) {
-    await this.#device.transferOut(this.#endpointNumber, new Uint8Array(bytes));
-  }
-
-  async #line(text) {
-    await this.#device.transferOut(this.#endpointNumber, encode(text + '\n'));
+    this.#connected = false;
   }
 
   async printReceipt(sale, biz) {
-    if (!this.isConnected()) throw new Error('Impresora no conectada');
-
-    await this.#send(CMD.INIT);
-    await this.#send(CMD.CHARSET_PC850);
-
-    // ── Header ─────────────────────────────────
-    await this.#send(CMD.ALIGN_CENTER);
-    await this.#send(CMD.BOLD_ON);
-    await this.#send(CMD.DOUBLE_WH);
-    await this.#line(biz.name);
-    await this.#send(CMD.NORMAL_SIZE);
-    await this.#send(CMD.BOLD_OFF);
-    await this.#line(`RUC: ${biz.ruc}`);
-    await this.#line(biz.address);
-    await this.#line(dots());
-
-    // ── Sale info ──────────────────────────────
-    await this.#send(CMD.ALIGN_LEFT);
-    await this.#line(`Fecha:   ${sale.date}   ${sale.time}`);
-    await this.#line(`Cajero:  ${sale.cajero}`);
-    await this.#line(dots());
-
-    // ── Items ──────────────────────────────────
-    for (const item of sale.items) {
-      const subtotal = (item.price * item.qty).toFixed(2);
-      await this.#line(`${item.name} (${item.code})`.slice(0, LINE_WIDTH));
-      const left = `  ${fmtQty(item.qty)} ${item.unit}  x  $${item.price.toFixed(3)}`;
-      await this.#line(twoCol(left, `$${subtotal}`));
-      await this.#line(dots());
+    if (!this.#connected) throw new Error('Impresora no conectada');
+    const bytes = buildReceipt(sale, biz);
+    let res;
+    try {
+      res = await fetch(`${BRIDGE}/print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: bytes,
+      });
+    } catch {
+      this.#connected = false;
+      throw new Error('Bridge desconectado — verifica que bridge.py esté corriendo');
     }
-
-    // ── Totals ─────────────────────────────────
-    await this.#line(twoCol('Subtotal:', `$ ${sale.total.toFixed(2)}`));
-    await this.#line(dots());
-
-    await this.#send(CMD.BOLD_ON);
-    await this.#send(CMD.DOUBLE_H);
-    await this.#line(twoCol('TOTAL:', `$ ${sale.total.toFixed(2)}`));
-    await this.#send(CMD.NORMAL_SIZE);
-    await this.#send(CMD.BOLD_OFF);
-
-    await this.#line(twoCol('Recibido:', `$ ${sale.received.toFixed(2)}`));
-    await this.#line(twoCol('Cambio:', `$ ${sale.change.toFixed(2)}`));
-    await this.#line(dots());
-
-    // ── Payment ────────────────────────────────
-    await this.#line(twoCol('EFECTIVO', 'PAGADO'));
-    await this.#line(dots());
-
-    // ── Footer ─────────────────────────────────
-    await this.#send(CMD.ALIGN_CENTER);
-    await this.#send(CMD.LF);
-    await this.#send(CMD.BOLD_ON);
-    await this.#line('¡Gracias por su compra!');
-    await this.#send(CMD.BOLD_OFF);
-    await this.#send(CMD.LF);
-
-    // ── Barcode (Code128) ──────────────────────
-    await this.#send(CMD.BAR_HEIGHT);
-    await this.#send(CMD.BAR_WIDTH);
-    await this.#send(CMD.BAR_HRI_BELOW);
-    const idBytes = Array.from(sale.saleId).map(c => c.charCodeAt(0));
-    await this.#send([0x1D, 0x6B, 0x49, idBytes.length, ...idBytes]);
-    await this.#send(CMD.LF);
-    await this.#send(CMD.LF);
-    await this.#send(CMD.LF);
-
-    // ── Cut ────────────────────────────────────
-    await this.#send(CMD.CUT);
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: 'Error desconocido' }));
+      throw new Error(error);
+    }
   }
 }
