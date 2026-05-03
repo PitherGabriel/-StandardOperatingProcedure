@@ -1,20 +1,15 @@
 import Barcode from 'react-barcode';
 
 const W = 42;
+const MONO = '"Courier New", Courier, monospace';
 
 function dots() { return '.'.repeat(W); }
-
-function twoCol(left, right) {
-  const maxLeft = W - right.length;
-  return left.slice(0, maxLeft).padEnd(maxLeft) + right;
-}
-
 function fmtQty(qty) { return parseFloat(qty.toFixed(2)).toString(); }
 
 function Line({ text = '', center = false, bold = false, large = false }) {
   return (
     <div style={{
-      fontFamily: '"Courier New", Courier, monospace',
+      fontFamily: MONO,
       fontSize: large ? '13px' : '11px',
       fontWeight: bold ? 'bold' : 'normal',
       textAlign: center ? 'center' : 'left',
@@ -23,6 +18,23 @@ function Line({ text = '', center = false, bold = false, large = false }) {
       color: '#111',
     }}>
       {text}
+    </div>
+  );
+}
+
+function Row({ left, right, bold = false, large = false }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      fontFamily: MONO,
+      fontSize: large ? '13px' : '11px',
+      fontWeight: bold ? 'bold' : 'normal',
+      lineHeight: '1.5',
+      color: '#111',
+    }}>
+      <span>{left}</span>
+      <span>{right}</span>
     </div>
   );
 }
@@ -49,26 +61,28 @@ export default function ReceiptPreview({ sale, biz }) {
       {/* Items */}
       {sale.items.map((item, i) => {
         const subtotal = (item.price * item.qty).toFixed(2);
-        const left = `  ${fmtQty(item.qty)} ${item.unit}  x  $${item.price.toFixed(3)}`;
         return (
           <div key={i}>
-            <Line text={`${item.name}`.slice(0, W)} />
-            <Line text={twoCol(left, `$${subtotal}`)} />
+            <Line text={item.name.slice(0, W)} />
+            <Row
+              left={`  ${fmtQty(item.qty)} ${item.unit}  x  $${item.price.toFixed(3)}`}
+              right={`$${subtotal}`}
+            />
             <Line text={dots()} />
           </div>
         );
       })}
 
       {/* Totals */}
-      <Line text={twoCol('Subtotal:', `$ ${sale.total.toFixed(2)}`)} />
+      <Row left="Subtotal:" right={`$ ${sale.total.toFixed(2)}`} />
       <Line text={dots()} />
-      <Line text={twoCol('TOTAL:', `$ ${sale.total.toFixed(2)}`)} bold large />
-      <Line text={twoCol('Recibido:', `$ ${sale.received.toFixed(2)}`)} />
-      <Line text={twoCol('Cambio:', `$ ${sale.change.toFixed(2)}`)} />
+      <Row left="TOTAL:" right={`$ ${sale.total.toFixed(2)}`} bold large />
+      <Row left="Recibido:" right={`$ ${sale.received.toFixed(2)}`} />
+      <Row left="Cambio:" right={`$ ${sale.change.toFixed(2)}`} />
       <Line text={dots()} />
 
       {/* Payment */}
-      <Line text={twoCol('EFECTIVO', 'PAGADO')} />
+      <Row left="EFECTIVO" right="PAGADO" />
       <Line text={dots()} />
 
       {/* Footer */}
