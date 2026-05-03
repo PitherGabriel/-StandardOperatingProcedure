@@ -1,12 +1,23 @@
 import React, { useState, useEffect, forwardRef } from 'react';
-import { ShoppingCart, Trash2, Search, Loader, Plus, DollarSign } from 'lucide-react';
+import { ShoppingCart, Trash2, Search, Loader, Plus, DollarSign, Printer } from 'lucide-react';
 import CameraModal from './camera';
+import { usePrinter } from './usePrinter';
+import PostSaleModal from './PostSaleModal';
+import { generateSaleId } from './printerService';
+
+const BUSINESS = {
+  name: import.meta.env.VITE_BUSINESS_NAME || 'Mi Tienda',
+  ruc: import.meta.env.VITE_BUSINESS_RUC || '0000000000001',
+  address: import.meta.env.VITE_BUSINESS_ADDRESS || 'Dirección del negocio',
+};
 
 export default function PosBox({ inventory, setInventory, currentUser, showNotification }) {
     const [cart, setCart] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [receivedMoney, setReceivedMoney] = useState('');
     const [processingSale, setProcessingSale] = useState(false);
+    const [completedSale, setCompletedSale] = useState(null);
+    const printer = usePrinter();
 
     // Filtrar productos por búsqueda
     const filteredInventory = searchTerm.trim() === '' ? []
@@ -141,6 +152,26 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
         setProcessingSale(true);
 
+        // Snapshot sale data before the async call
+        const total = calculateTotal();
+        const received = parseFloat(receivedMoney) || 0;
+        const saleSnapshot = {
+            items: cart.map(item => ({
+                name: item.nombre,
+                code: item.codigo,
+                qty: item.cantidadVendida,
+                unit: item.unidad,
+                price: item.precioActual ?? item.precio,
+            })),
+            total,
+            received,
+            change: Math.max(0, received - total),
+            date: new Date().toLocaleDateString('es-EC'),
+            time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
+            cajero: currentUser?.nombre || 'Cajero',
+            saleId: generateSaleId(),
+        };
+
         try {
             const cartData = cart.map(item => ({
                 codigo: item.codigo,
@@ -167,24 +198,13 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                 const updatedInventory = inventory.map(item => {
                     const cartItem = cart.find(c => c.id === item.id);
                     if (cartItem) {
-                        return {
-                            ...item,
-                            cantidad: item.cantidad - cartItem.cantidadVendida
-                        };
+                        return { ...item, cantidad: item.cantidad - cartItem.cantidadVendida };
                     }
                     return item;
                 });
-
                 setInventory(updatedInventory);
-                showNotification('¡Venta procesada exitosamente!', 'success');
-
-                // Clear everything after sale
-                setCart([]);
-                setReceivedMoney('');
-                setSearchTerm('');
-
-            }
-            else {
+                setCompletedSale(saleSnapshot);
+            } else {
                 showNotification(result.error, 'error');
             }
 
@@ -193,6 +213,22 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
             showNotification('Error al procesar la venta', 'error');
         } finally {
             setProcessingSale(false);
+        }
+    };
+
+    const dismissSaleModal = () => {
+        setCompletedSale(null);
+        setCart([]);
+        setReceivedMoney('');
+        setSearchTerm('');
+        showNotification('¡Venta procesada exitosamente!', 'success');
+    };
+
+    const handlePrint = async () => {
+        try {
+            await printer.printReceipt(completedSale, BUSINESS);
+        } catch {
+            // error already surfaced in printer.error
         }
     };
 
@@ -223,6 +259,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     };
 
     return (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-210px)]">
             {/* Búsqueda de Productos */}
             <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[45vh] lg:h-full">
@@ -300,8 +337,22 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
             {/* Carrito de Venta */}
             <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[55vh] lg:h-full">
-                <div className="p-4 shrink-0">
+                <div className="p-4 shrink-0 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-800">Caja</h2>
+                    {printer.isSupported && (
+                        <button
+                            onClick={!printer.connected ? printer.connect : undefined}
+                            title={printer.connected ? 'Impresora conectada' : 'Conectar impresora'}
+                            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition
+                                ${printer.connected
+                                    ? 'bg-green-100 text-green-700 cursor-default'
+                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer'}`}
+                        >
+                            <span className={`w-1.5 h-1.5 rounded-full ${printer.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                            <Printer size={13} />
+                            {printer.connected ? 'Lista' : 'Conectar'}
+                        </button>
+                    )}
                 </div>
 
                 {/* Fixed table header - only shows when cart has items */}
@@ -553,5 +604,20 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                 </div>
             </div>
         </div>
+
+        {completedSale && (
+            <PostSaleModal
+                sale={completedSale}
+                biz={BUSINESS}
+                connected={printer.connected}
+                printing={printer.printing}
+                error={printer.error}
+                isSupported={printer.isSupported}
+                onConnect={printer.connect}
+                onPrint={handlePrint}
+                onClose={dismissSaleModal}
+            />
+        )}
+        </>
     );
 }

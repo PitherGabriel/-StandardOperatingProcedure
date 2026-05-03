@@ -1,10 +1,7 @@
-# Backend Dockerfile - DESARROLLO
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Establecer directorio de trabajo
 WORKDIR /app
 
-# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
@@ -12,22 +9,20 @@ RUN apt-get update && apt-get install -y \
     libxslt-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements
-COPY requirements.txt .
+COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
 
-# Instalar dependencias de Python
-RUN pip install --no-cache-dir -r requirements.txt
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV UV_LINK_MODE=copy
 
-# Copiar código de la aplicación
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen --no-dev --no-install-project
+
 COPY . .
 
-# Variables de entorno para produccion
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
 
-# Exponer port
 EXPOSE 5000
 
-
-# Run with Gunicorn (4 workers is a good default)
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "api_server:app"]
+CMD ["uv", "run", "gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "api_server:app"]
