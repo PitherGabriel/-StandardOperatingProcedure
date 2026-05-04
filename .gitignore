@@ -213,3 +213,6 @@ backend/create_user.py
 secrets/
 certificado.p12
 
+# Executables
+*.exe
+
