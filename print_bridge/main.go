@@ -117,7 +117,7 @@ func main() {
 	}))
 
 	addr := "127.0.0.1:" + port
-	log.Printf("Print bridge  →  http://%s", addr)
-	log.Printf("Printer name  →  %s", printer)
+	log.Printf("Print bridge: http://%s", addr)
+	log.Printf("Printer name: %s", printer)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
