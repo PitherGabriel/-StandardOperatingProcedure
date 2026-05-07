@@ -270,7 +270,7 @@ class InventoryManager:
 
             
             # Preparar fila para insertar
-            # Estructura: ID, Codigo, Nombre, Cantidad, Costo, Precio, MinStock, UltimaActualizacion
+            # Estructura: ID, Codigo, Nombre, Cantidad, Unidad, Costo, Precio_1, Precio_2, Precio_3, MinStock, UltimaActualizacion, Categoria, Subcategoria
             row = [
                 next_id,
                 product_data['codigo'],
@@ -282,7 +282,9 @@ class InventoryManager:
                 product_data['precio_2'],
                 product_data['precio_3'],
                 product_data['minStock'],
-                ultima_actualizacion,
+                product_data['ultima_actualizacion'],
+                product_data.get('categoria', ''),
+                product_data.get('subcategoria', ''),
             ]
             
             print(f'Producto para insertar: {row}')
@@ -564,6 +566,52 @@ class InventoryManager:
                 'error': str(e)
             }
             
+    def _get_or_create_categories_sheet(self):
+        try:
+            return self.spreadsheet.worksheet('Categorias')
+        except gspread.exceptions.WorksheetNotFound:
+            sheet = self.spreadsheet.add_worksheet(title='Categorias', rows=200, cols=2)
+            sheet.append_row(['Categoria', 'Subcategoria'])
+            return sheet
+
+    def get_categories(self):
+        """Obtiene categorías y subcategorías desde la hoja Categorias"""
+        try:
+            sheet = self._get_or_create_categories_sheet()
+            records = sheet.get_all_records()
+            grouped = {}
+            for row in records:
+                cat = str(row.get('Categoria', '')).strip()
+                sub = str(row.get('Subcategoria', '')).strip()
+                if not cat:
+                    continue
+                if cat not in grouped:
+                    grouped[cat] = []
+                if sub and sub not in grouped[cat]:
+                    grouped[cat].append(sub)
+            return {'success': True, 'data': grouped}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def add_category(self, categoria, subcategoria=''):
+        """Agrega una categoría o subcategoría a la hoja Categorias"""
+        try:
+            categoria = categoria.strip()
+            subcategoria = subcategoria.strip() if subcategoria else ''
+            if not categoria:
+                return {'success': False, 'error': 'El nombre de la categoría no puede estar vacío'}
+            sheet = self._get_or_create_categories_sheet()
+            records = sheet.get_all_records()
+            # Prevent exact duplicates
+            for row in records:
+                if (str(row.get('Categoria', '')).strip() == categoria and
+                        str(row.get('Subcategoria', '')).strip() == subcategoria):
+                    return {'success': False, 'error': 'Esta categoría/subcategoría ya existe'}
+            sheet.append_row([categoria, subcategoria])
+            return {'success': True, 'message': 'Categoría agregada exitosamente'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def get_low_stock_alerts(self):
         """Obtiene todos los productos con stock bajo"""
         records = self.get_inventory()
@@ -808,6 +856,135 @@ class InventoryManager:
                 'error': str(e),
                 'traceback': traceback.format_exc()
             }
+
+    def export_cierre_caja(self, period='today', custom_start=None, custom_end=None):
+        """Genera un archivo Excel con el cierre de caja del período dado"""
+        from io import BytesIO
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+
+        result = self.get_profit_analysis(period, custom_start, custom_end)
+        if not result['success']:
+            return result
+
+        data = result['data']
+        wb = openpyxl.Workbook()
+
+        BLUE   = PatternFill(start_color='006BA6', end_color='006BA6', fill_type='solid')
+        LBLUE  = PatternFill(start_color='E8F4FD', end_color='E8F4FD', fill_type='solid')
+        WHITE_BOLD = Font(color='FFFFFF', bold=True)
+        CENTER = Alignment(horizontal='center', vertical='center')
+        RIGHT  = Alignment(horizontal='right')
+
+        def header_cell(ws, row, col, value):
+            c = ws.cell(row=row, column=col, value=value)
+            c.font = WHITE_BOLD
+            c.fill = BLUE
+            c.alignment = CENTER
+            return c
+
+        def auto_width(ws):
+            for col in ws.columns:
+                width = max((len(str(cell.value or '')) for cell in col), default=0)
+                ws.column_dimensions[get_column_letter(col[0].column)].width = min(width + 4, 45)
+
+        # ── Sheet 1: Resumen ──────────────────────────────────────────────
+        ws1 = wb.active
+        ws1.title = 'Resumen'
+
+        ws1.merge_cells('A1:C1')
+        t = ws1['A1']
+        t.value = f"CIERRE DE CAJA — {data['periodo']}"
+        t.font = Font(color='FFFFFF', bold=True, size=13)
+        t.fill = BLUE
+        t.alignment = CENTER
+        ws1.row_dimensions[1].height = 28
+
+        ws1.merge_cells('A2:C2')
+        g = ws1['A2']
+        g.value = f"Generado: {datetime.now(BUSINESS_TZ).strftime('%d/%m/%Y %H:%M:%S')}"
+        g.font = Font(italic=True, color='666666', size=9)
+        g.alignment = CENTER
+
+        stats = [
+            ('Ingresos Totales',  f"${data['total_ingresos']:.2f}"),
+            ('Costos Totales',    f"${data['total_costos']:.2f}"),
+            ('Utilidad Neta',     f"${data['utilidad_neta']:.2f}"),
+            ('Margen',            f"{data['margen_total']:.2f}%"),
+            ('Total de Ventas',   data['total_ventas']),
+            ('Unidades Vendidas', data['total_unidades']),
+            ('Ticket Promedio',   f"${data['ticket_promedio']:.2f}"),
+        ]
+        for i, (label, value) in enumerate(stats):
+            r = i + 4
+            lc = ws1.cell(row=r, column=1, value=label)
+            lc.font = Font(bold=True)
+            lc.fill = LBLUE
+            vc = ws1.cell(row=r, column=2, value=value)
+            vc.alignment = RIGHT
+
+        if data['vendedores']:
+            vstart = len(stats) + 6
+            for col, h in enumerate(['Vendedor', 'Ventas', 'Ingresos', 'Utilidad'], 1):
+                header_cell(ws1, vstart, col, h)
+            for i, v in enumerate(data['vendedores']):
+                r = vstart + 1 + i
+                ws1.cell(row=r, column=1, value=v['vendedor'])
+                ws1.cell(row=r, column=2, value=v['ventas'])
+                ws1.cell(row=r, column=3, value=round(v['ingresos'], 2))
+                ws1.cell(row=r, column=4, value=round(v['utilidad'], 2))
+
+        auto_width(ws1)
+
+        # ── Sheet 2: Detalle de Ventas ────────────────────────────────────
+        ws2 = wb.create_sheet('Detalle de Ventas')
+        cols2 = ['Fecha', 'Hora', 'Producto', 'Cantidad',
+                 'Precio Venta', 'Costo Unitario', 'Ingreso', 'Costo', 'Utilidad', 'Vendedor']
+        for col, h in enumerate(cols2, 1):
+            header_cell(ws2, 1, col, h)
+
+        for i, s in enumerate(data['ventas_detalle']):
+            r = 2 + i
+            for col, val in enumerate([
+                s['fecha'], s['hora'], s['producto'], s['cantidad'],
+                s['precio_venta'], s['costo_unitario'],
+                s['ingreso'], s['costo'], s['utilidad'], s['vendedor']
+            ], 1):
+                ws2.cell(row=r, column=col, value=val)
+
+        # Totals row
+        if data['ventas_detalle']:
+            tr = 2 + len(data['ventas_detalle'])
+            tc = ws2.cell(row=tr, column=3, value='TOTAL')
+            tc.font = Font(bold=True)
+            for col, val in [(7, data['total_ingresos']), (8, data['total_costos']), (9, data['utilidad_neta'])]:
+                c = ws2.cell(row=tr, column=col, value=round(val, 2))
+                c.font = Font(bold=True)
+
+        auto_width(ws2)
+
+        # ── Sheet 3: Top Productos ────────────────────────────────────────
+        ws3 = wb.create_sheet('Top Productos')
+        cols3 = ['Producto', 'Código', 'Cantidad', 'Ingresos', 'Costos', 'Utilidad']
+        for col, h in enumerate(cols3, 1):
+            header_cell(ws3, 1, col, h)
+
+        for i, p in enumerate(data['productos_vendidos']):
+            r = 2 + i
+            for col, val in enumerate([
+                p['producto'], p['codigo'], p['cantidad'],
+                round(p['ingresos'], 2), round(p['costos'], 2), round(p['utilidad'], 2)
+            ], 1):
+                ws3.cell(row=r, column=col, value=val)
+
+        auto_width(ws3)
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return {'success': True, 'workbook': output, 'periodo': data['periodo']}
+
 
 class InferenceModel:
     def __init__(self, API_KEY,):

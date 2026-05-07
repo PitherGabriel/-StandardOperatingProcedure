@@ -41,24 +41,16 @@ function Row({ left, right, bold = false, large = false }) {
 
 export default function ReceiptPreview({ sale, biz }) {
   return (
-    <div style={{
-      background: 'white',
-      padding: '16px 12px',
-      width: '320px',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
-    }}>
-      {/* Header */}
+    <div style={{ background: 'white', padding: '16px 12px', width: '320px', boxShadow: '0 2px 12px rgba(0,0,0,0.18)' }}>
       <Line text={biz.name} center bold large />
       <Line text={`RUC: ${biz.ruc}`} center />
       <Line text={biz.address} center />
       <Line text={dots()} />
 
-      {/* Sale info */}
       <Line text={`Fecha:   ${sale.date}   ${sale.time}`} />
       <Line text={`Cajero:  ${sale.cajero}`} />
       <Line text={dots()} />
 
-      {/* Items */}
       {sale.items.map((item, i) => {
         const subtotal = (item.price * item.qty).toFixed(2);
         return (
@@ -73,7 +65,6 @@ export default function ReceiptPreview({ sale, biz }) {
         );
       })}
 
-      {/* Totals */}
       <Row left="Subtotal:" right={`$ ${sale.total.toFixed(2)}`} />
       <Line text={dots()} />
       <Row left="TOTAL:" right={`$ ${sale.total.toFixed(2)}`} bold large />
@@ -81,14 +72,10 @@ export default function ReceiptPreview({ sale, biz }) {
       <Row left="Cambio:" right={`$ ${sale.change.toFixed(2)}`} />
       <Line text={dots()} />
 
-      {/* Payment */}
       <Row left="EFECTIVO" right="PAGADO" />
       <Line text={dots()} />
-
-      {/* Footer */}
       <Line text="¡Gracias por su compra!" center bold />
 
-      {/* Barcode */}
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
         <Barcode
           value={sale.saleId}

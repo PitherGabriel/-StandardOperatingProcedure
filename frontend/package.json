@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-barcode": "^1.6.1",

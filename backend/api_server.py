@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, send_file
 from flask_cors import CORS
 from pos_backend import InventoryManager, InferenceModel
 import time
@@ -180,6 +180,8 @@ def create_app():
                 'precio_3': float(data['precio_3']),
                 'minStock': data.get('minStock', 5),
                 'unidad': data['unidad'],
+                'categoria': data.get('categoria', ''),
+                'subcategoria': data.get('subcategoria', ''),
             }
             
             # Guardar producto usando la clase de Google Sheets
@@ -294,6 +296,51 @@ def create_app():
             print("get api alerts")
             alerts = inventory.get_low_stock_alerts()
             return jsonify({'success': True, 'alerts': alerts})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/categories', methods=['GET'])
+    def get_categories():
+        try:
+            result = inventory.get_categories()
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/categories', methods=['POST'])
+    def add_category():
+        try:
+            data = request.json
+            categoria = data.get('categoria', '').strip()
+            subcategoria = data.get('subcategoria', '').strip()
+            if not categoria:
+                return jsonify({'success': False, 'error': 'Nombre de categoría requerido'}), 400
+            result = inventory.add_category(categoria, subcategoria)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/sales/export', methods=['GET'])
+    def export_cierre_caja():
+        try:
+            from datetime import datetime
+            period = request.args.get('period', 'today')
+            custom_start = request.args.get('start_date')
+            custom_end = request.args.get('end_date')
+
+            result = inventory.export_cierre_caja(period, custom_start, custom_end)
+            if not result['success']:
+                return jsonify(result), 400
+
+            periodo_safe = result['periodo'].replace('/', '-').replace(' ', '_')
+            filename = f"cierre_caja_{periodo_safe}.xlsx"
+
+            return send_file(
+                result['workbook'],
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=filename,
+            )
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 

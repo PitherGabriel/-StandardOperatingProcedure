@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { PrinterService } from './printerService';
+import { PrinterService } from '../services/printerService';
 
 export function usePrinter() {
   const service = useRef(new PrinterService());

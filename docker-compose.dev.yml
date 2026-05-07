@@ -3,7 +3,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro  # different nginx config for dev
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.dev.conf:ro
+    command: ["nginx", "-g", "daemon off;", "-c", "/etc/nginx/nginx.dev.conf"]
 
   backend:
     command: uv run flask run --host=0.0.0.0 --port=5000 --debug
