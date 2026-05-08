@@ -110,6 +110,7 @@ class ReceiptPrinter:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+
 class InventoryManager:
     def __init__(self, credentials_file, spreadsheet_name):
         scope = ['https://spreadsheets.google.com/feeds',
@@ -282,7 +283,7 @@ class InventoryManager:
                 product_data['precio_2'],
                 product_data['precio_3'],
                 product_data['minStock'],
-                product_data['ultima_actualizacion'],
+                ultima_actualizacion, 
                 product_data.get('categoria', ''),
                 product_data.get('subcategoria', ''),
             ]
