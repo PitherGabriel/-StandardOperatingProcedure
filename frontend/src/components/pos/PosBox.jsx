@@ -225,7 +225,6 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                     className="aspect-square rounded-xl flex flex-col items-center justify-center p-2 bg-gray-400 text-white hover:opacity-90 active:scale-95 transition-all shadow-sm"
                   >
                     <span className="font-bold text-sm text-center leading-tight">Otros</span>
-                    <span className="text-xs opacity-80 mt-1">{uncategorizedCount}</span>
                   </button>
                 )}
               </div>
