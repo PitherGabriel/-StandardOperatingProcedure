@@ -71,6 +71,7 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Private-Network", "true") 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -117,7 +118,7 @@ func main() {
 	}))
 
 	addr := "127.0.0.1:" + port
-	log.Printf("Print bridge  →  http://%s", addr)
-	log.Printf("Printer name  →  %s", printer)
+	log.Printf("Print bridge: http://%s", addr)
+	log.Printf("Printer name: %s", printer)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }

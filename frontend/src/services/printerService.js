@@ -87,16 +87,26 @@ function buildReceipt(sale, biz) {
   }
 
   // ── Totals ─────────────────────────────────
-  b.text(twoCol('Subtotal:', `$ ${sale.total.toFixed(2)}`));
-  b.text(dots());
+  if (sale.discountPct > 0) {
+    const subtotal = sale.items.reduce((s, i) => s + i.price * i.qty, 0);
+    b.text(twoCol('Subtotal:', `$ ${subtotal.toFixed(2)}`));
+    b.text(twoCol(`Descuento (${sale.discountPct}%):`, `-$ ${(subtotal - sale.total).toFixed(2)}`));
+    b.text(dots());
+  }
   b.cmd(CMD.BOLD_ON, CMD.DOUBLE_H).text(twoCol('TOTAL:', `$ ${sale.total.toFixed(2)}`));
   b.cmd(CMD.NORMAL_SIZE, CMD.BOLD_OFF);
-  b.text(twoCol('Recibido:', `$ ${sale.received.toFixed(2)}`));
-  b.text(twoCol('Cambio:', `$ ${sale.change.toFixed(2)}`));
+  if (sale.metodoPago === 'efectivo' || !sale.metodoPago) {
+    b.text(twoCol('Recibido:', `$ ${sale.received.toFixed(2)}`));
+    b.text(twoCol('Cambio:', `$ ${sale.change.toFixed(2)}`));
+  }
   b.text(dots());
 
-  // ── Payment ────────────────────────────────
-  b.text(twoCol('EFECTIVO', 'PAGADO'));
+  // ── Payment method ─────────────────────────
+  const payLabel = { efectivo: 'EFECTIVO', tarjeta: 'TARJETA', transferencia: 'TRANSFERENCIA' }[sale.metodoPago] || 'EFECTIVO';
+  b.text(twoCol(payLabel, 'PAGADO'));
+  if (sale.metodoPago === 'transferencia' && sale.referencia) {
+    b.text(`Ref: ${sale.referencia}`.slice(0, LINE_WIDTH));
+  }
   b.text(dots());
 
   // ── Footer ─────────────────────────────────
