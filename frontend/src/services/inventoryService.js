@@ -36,3 +36,13 @@ export async function addCategory(categoria, subcategoria = '') {
   const res = await api.post('/categories', { categoria, subcategoria });
   return res.json();
 }
+
+export async function updateProduct(codigo, updates) {
+  const res = await api.put(`/inventory/${codigo}`, updates);
+  return res.json();
+}
+
+export async function adjustStock(codigo, cantidadAjuste, motivo = '') {
+  const res = await api.post(`/inventory/${codigo}/adjust`, { cantidad_ajuste: cantidadAjuste, motivo });
+  return res.json();
+}

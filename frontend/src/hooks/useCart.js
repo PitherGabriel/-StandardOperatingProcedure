@@ -1,17 +1,19 @@
 import { useState } from 'react';
 
-export function useCart(inventory) {
+export function useCart(inventory, onError) {
   const [cart, setCart] = useState([]);
+
+  const notify = (msg) => onError ? onError(msg, 'error') : console.warn(msg);
 
   const addToCart = (product) => {
     if (product.cantidad === 0) {
-      alert('¡Producto sin stock!');
+      notify('¡Producto sin stock!');
       return;
     }
     const existing = cart.find(i => i.id === product.id);
     if (existing) {
       if (existing.cantidadVendida >= product.cantidad) {
-        alert('¡No hay suficiente stock!');
+        notify('¡No hay suficiente stock!');
         return;
       }
       setCart(c => c.map(i =>
@@ -45,7 +47,7 @@ export function useCart(inventory) {
       return;
     }
     if (quantity > product.cantidad) {
-      alert('¡No hay suficiente stock!');
+      notify('¡No hay suficiente stock!');
       setCart(c => c.map(i => i.id === productId ? { ...i, cantidadVendida: product.cantidad } : i));
       return;
     }

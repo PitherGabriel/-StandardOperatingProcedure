@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useNotification } from './hooks/useNotification';
 import { useSales } from './hooks/useSales';
+import { usePrinter } from './hooks/usePrinter';
 import Header from './components/layout/Header';
 import TabNav from './components/layout/TabNav';
 import LoginScreen from './components/layout/LoginScreen';
@@ -18,6 +19,7 @@ const POSSystem = () => {
   const auth = useAuth();
   const { notification, setNotification, showNotification } = useNotification();
   const sales = useSales();
+  const printer = usePrinter();
   const [activeTab, setActiveTab] = useState('pos');
   const [activeSubTab, setActiveSubTab] = useState('ver-inventario');
 
@@ -42,7 +44,13 @@ const POSSystem = () => {
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {notification && <NotificationToast notification={notification} setNotification={setNotification} />}
 
-      <Header currentUser={auth.currentUser} onLogout={auth.handleLogout} />
+      <Header
+        currentUser={auth.currentUser}
+        onLogout={auth.handleLogout}
+        printer={printer}
+        onPrinterConnect={printer.connect}
+        showNotification={showNotification}
+      />
 
       <TabNav
         activeTab={activeTab}
@@ -67,11 +75,16 @@ const POSSystem = () => {
             setInventory={auth.setInventory}
             currentUser={auth.currentUser}
             showNotification={showNotification}
+            printer={printer}
           />
         )}
 
         {activeTab === 'productos' && activeSubTab === 'ver-inventario' && (
-          <StockTable inventory={auth.inventory} />
+          <StockTable
+            inventory={auth.inventory}
+            onInventoryChange={auth.refreshInventory}
+            showNotification={showNotification}
+          />
         )}
         {activeTab === 'productos' && activeSubTab === 'anadir-producto' && (
           <InventoryForm
@@ -91,6 +104,8 @@ const POSSystem = () => {
             setFilterStartDate={sales.setFilterStartDate}
             filterEndDate={sales.filterEndDate}
             setFilterEndDate={sales.setFilterEndDate}
+            onHistoryChange={() => { sales.loadHistory(); auth.refreshInventory(); }}
+            showNotification={showNotification}
           />
         )}
         {activeTab === 'profits' && (

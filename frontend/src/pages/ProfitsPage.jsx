@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Minus, TrendingUp, CircleDollarSign, Download, Loader } from 'lucide-react';
+import { Minus, TrendingUp, CircleDollarSign, Download, Loader, Banknote, CreditCard, ArrowRightLeft } from 'lucide-react';
+
+const METODO_CONFIG = {
+  efectivo:      { label: 'Efectivo',      Icon: Banknote,       borderCls: 'border-green-500',  bgCls: 'bg-green-50',  textCls: 'text-green-700',  iconCls: 'text-green-500'  },
+  tarjeta:       { label: 'Tarjeta',       Icon: CreditCard,     borderCls: 'border-blue-500',   bgCls: 'bg-blue-50',   textCls: 'text-blue-700',   iconCls: 'text-blue-500'   },
+  transferencia: { label: 'Transferencia', Icon: ArrowRightLeft, borderCls: 'border-purple-500', bgCls: 'bg-purple-50', textCls: 'text-purple-700', iconCls: 'text-purple-500' },
+};
 
 const PERIODS = [
   { id: 'today', label: 'Hoy' },
@@ -150,6 +156,31 @@ export default function ProfitsPage({
               <p className="text-xl font-bold text-gray-800">${profitAnalysis.ticket_promedio}</p>
             </div>
           </div>
+
+          {profitAnalysis.metodo_pago_breakdown?.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-5">
+              <h3 className="text-base font-semibold text-gray-800 mb-4">Ingresos por Método de Pago</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {profitAnalysis.metodo_pago_breakdown.map(({ metodo, ingresos, transacciones }) => {
+                  const cfg = METODO_CONFIG[metodo] || {
+                    label: metodo, Icon: CircleDollarSign,
+                    borderCls: 'border-gray-400', bgCls: 'bg-gray-50', textCls: 'text-gray-700', iconCls: 'text-gray-500',
+                  };
+                  const { label, Icon, borderCls, bgCls, textCls, iconCls } = cfg;
+                  return (
+                    <div key={metodo} className={`flex items-center gap-4 p-4 rounded-lg border-l-4 ${borderCls} ${bgCls}`}>
+                      <Icon className={`${iconCls} shrink-0`} size={28} />
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+                        <p className={`text-xl font-bold ${textCls}`}>${ingresos.toFixed(2)}</p>
+                        <p className="text-xs text-gray-400">{transacciones} línea{transacciones !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {profitAnalysis.productos_vendidos?.length > 0 && (
             <div className="bg-white rounded-lg shadow">

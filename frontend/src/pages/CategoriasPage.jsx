@@ -2,12 +2,49 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Loader, Plus, X } from 'lucide-react';
 import { fetchCategories, addCategory } from '../services/inventoryService';
 
+const STORE_EMOJIS = [
+  '🍎','🥩','🧀','🥛','🍞','🧃','🥤','🍫','🍬','🧁',
+  '🥦','🍋','🥕','🌽','🍅','🧄','🧅','🥑','🍇','🍓',
+  '🧴','🧹','🪣','🧺','🧻','🪥','🫧','🧽','🏠','🛋️',
+  '👕','👟','🎒','🧢','⌚','💄','🪞','🛍️','📦','🔧',
+  '⚡','📱','💻','🔋','💡','🎮','📷','🖨️','🎵','📚',
+];
+
+function EmojiPicker({ selected, onSelect }) {
+  return (
+    <div className="mt-2 p-2 border border-gray-200 rounded-lg bg-white">
+      <div className="grid grid-cols-10 gap-1">
+        {STORE_EMOJIS.map(e => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => onSelect(selected === e ? '' : e)}
+            className={`text-lg p-1 rounded transition hover:bg-blue-50 ${selected === e ? 'bg-blue-100 ring-2 ring-[#008cc8]' : ''}`}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+      {selected && (
+        <button
+          type="button"
+          onClick={() => onSelect('')}
+          className="mt-2 text-xs text-gray-400 hover:text-red-500 transition"
+        >
+          Quitar emoji
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function CategoriasPage({ showNotification }) {
   const [categories, setCategories] = useState({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ categoria: '', subcategoria: '', isNewCat: true });
+  const [form, setForm] = useState({ categoria: '', subcategoria: '', isNewCat: true, emoji: '' });
+  const [showEmoji, setShowEmoji] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const loadCategories = () => {
@@ -24,17 +61,19 @@ export default function CategoriasPage({ showNotification }) {
     setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
 
   const handleSubmit = async () => {
-    const cat = form.categoria.trim();
-    if (!cat) {
+    const base = form.categoria.trim();
+    if (!base) {
       showNotification('El nombre de la categoría es requerido', 'error');
       return;
     }
+    const cat = form.emoji ? `${form.emoji} ${base}` : base;
     setSaving(true);
     try {
       const result = await addCategory(cat, form.subcategoria.trim());
       if (result.success) {
         showNotification('Categoría guardada exitosamente', 'success');
-        setForm({ categoria: '', subcategoria: '', isNewCat: true });
+        setForm({ categoria: '', subcategoria: '', isNewCat: true, emoji: '' });
+        setShowEmoji(false);
         setShowForm(false);
         loadCategories();
       } else {
@@ -69,7 +108,7 @@ export default function CategoriasPage({ showNotification }) {
             <h3 className="font-semibold text-gray-800 mb-4">Agregar categoría / subcategoría</h3>
             <div className="flex gap-2 mb-3">
               <button
-                onClick={() => setForm(f => ({ ...f, isNewCat: true, categoria: '' }))}
+                onClick={() => setForm(f => ({ ...f, isNewCat: true, categoria: '', emoji: '' }))}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition ${
                   form.isNewCat ? 'bg-[#008cc8] text-white' : 'bg-white text-gray-600 border border-gray-300'
                 }`}
@@ -77,7 +116,7 @@ export default function CategoriasPage({ showNotification }) {
                 Nueva categoría
               </button>
               <button
-                onClick={() => setForm(f => ({ ...f, isNewCat: false, categoria: existingCats[0] || '' }))}
+                onClick={() => setForm(f => ({ ...f, isNewCat: false, categoria: existingCats[0] || '', emoji: '' }))}
                 disabled={existingCats.length === 0}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition disabled:opacity-40 ${
                   !form.isNewCat ? 'bg-[#008cc8] text-white' : 'bg-white text-gray-600 border border-gray-300'
@@ -91,13 +130,31 @@ export default function CategoriasPage({ showNotification }) {
               {form.isNewCat ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de categoría</label>
-                  <input
-                    type="text"
-                    value={form.categoria}
-                    onChange={(e) => setForm(f => ({ ...f, categoria: e.target.value }))}
-                    placeholder="Ej: Alimentos"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmoji(v => !v)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-lg leading-none"
+                      title="Elegir emoji"
+                    >
+                      {form.emoji || '😀'}
+                    </button>
+                    <input
+                      type="text"
+                      value={form.categoria}
+                      onChange={(e) => setForm(f => ({ ...f, categoria: e.target.value }))}
+                      placeholder="Ej: Alimentos"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                    />
+                  </div>
+                  {form.emoji && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Vista previa: <span className="font-medium">{form.emoji} {form.categoria || 'Categoría'}</span>
+                    </p>
+                  )}
+                  {showEmoji && (
+                    <EmojiPicker selected={form.emoji} onSelect={e => { setForm(f => ({ ...f, emoji: e })); setShowEmoji(false); }} />
+                  )}
                 </div>
               ) : (
                 <div>

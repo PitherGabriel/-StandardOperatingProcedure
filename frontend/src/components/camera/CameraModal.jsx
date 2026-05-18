@@ -50,10 +50,11 @@ export default function CameraModal({ inventory, setInventory, showNotification,
   };
 
   const confirmAndSendCart = async () => {
-    if (cart.length === 0) { showNotification('El carrito está vacío', 'error'); return; }
+    const matched = cart.filter(i => i.confidence >= 0.65 && i.codigo);
+    if (matched.length === 0) { showNotification('No hay productos identificados para vender', 'error'); return; }
     setStep(STEPS.SELLING);
     try {
-      const cartData = cart.map(item => ({
+      const cartData = matched.map(item => ({
         codigo: item.codigo,
         cantidad_vendida: item.cantidadVendida,
         nombre: item.nombre,
@@ -175,43 +176,90 @@ export default function CameraModal({ inventory, setInventory, showNotification,
             </div>
             <div className="w-6" />
           </div>
-          <div className="flex items-center gap-3 px-5 py-3 shrink-0">
-            <div>
-              <p className="text-white font-semibold">
-                {cart.length} producto{cart.length !== 1 ? 's' : ''} encontrado{cart.length !== 1 ? 's' : ''}
-              </p>
-              <p className="text-white/50 text-xs">Revisa antes de enviar</p>
-            </div>
+          <div className="px-5 py-2 shrink-0">
+            <p className="text-white font-semibold">
+              {cart.filter(i => i.confidence >= 0.65).length} de {cart.length} productos identificados
+            </p>
+            <p className="text-white/50 text-xs">Ajusta cantidades o elimina líneas incorrectas antes de confirmar</p>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-5 py-2 space-y-2">
-            {cart.map((item, i) => (
-              <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex justify-between items-center">
-                <div>
-                  <p className="text-white font-medium text-sm">{item.nombre}</p>
-                  <p className="text-white/50 text-xs">Cantidad: {item.cantidadVendida}</p>
+            {cart.map((item, i) => {
+              const matched = item.confidence >= 0.65;
+              return (
+                <div key={i} className={`rounded-xl px-4 py-3 ${matched ? 'bg-white/10 backdrop-blur-sm' : 'bg-red-900/30 border border-red-500/30'}`}>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium text-sm truncate ${matched ? 'text-white' : 'text-red-300'}`}>
+                          {matched ? item.nombre : `Sin match: "${item.original_text}"`}
+                        </p>
+                        {matched && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 font-medium ${
+                            item.confidence >= 0.85 ? 'bg-green-500/30 text-green-300' :
+                            item.confidence >= 0.65 ? 'bg-yellow-500/30 text-yellow-300' : 'bg-red-500/30 text-red-300'
+                          }`}>
+                            {Math.round(item.confidence * 100)}%
+                          </span>
+                        )}
+                      </div>
+                      {matched && item.original_text !== item.nombre && (
+                        <p className="text-white/40 text-xs mt-0.5 truncate">OCR: "{item.original_text}"</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setCart(c => c.filter((_, idx) => idx !== i))}
+                      className="text-white/40 hover:text-red-400 transition shrink-0 p-0.5"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {matched && (
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setCart(c => c.map((it, idx) => idx === i ? {...it, cantidadVendida: Math.max(0.01, it.cantidadVendida - 1)} : it))}
+                          className="w-7 h-7 rounded-full bg-white/10 text-white flex items-center justify-center text-lg leading-none hover:bg-white/20 transition">−</button>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={item.cantidadVendida}
+                          onChange={e => setCart(c => c.map((it, idx) => idx === i ? {...it, cantidadVendida: parseFloat(e.target.value) || 1} : it))}
+                          className="w-14 text-center text-sm font-semibold bg-white/10 text-white border border-white/20 rounded-lg px-1 py-0.5 focus:outline-none"
+                        />
+                        <button onClick={() => setCart(c => c.map((it, idx) => idx === i ? {...it, cantidadVendida: it.cantidadVendida + 1} : it))}
+                          className="w-7 h-7 rounded-full bg-white/10 text-white flex items-center justify-center text-lg leading-none hover:bg-white/20 transition">+</button>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[#008cc8] font-bold text-sm">${(item.precio * item.cantidadVendida).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="text-right">
-                  <p className="text-[#008cc8] font-bold">${item.precio.toFixed(2)}</p>
-                  <p className="text-white/40 text-xs">x{item.cantidadVendida} = ${(item.precio * item.cantidadVendida).toFixed(2)}</p>
-                </div>
+              );
+            })}
+          </div>
+          {cart.filter(i => i.confidence >= 0.65).length > 0 && (
+            <div className="px-5 py-3 shrink-0 bg-white/10 backdrop-blur-sm mx-5 rounded-2xl mb-2">
+              <div className="flex justify-between items-center">
+                <span className="text-white/70 text-sm">Subtotal</span>
+                <span className="text-white text-lg font-bold">
+                  ${cart.filter(i => i.confidence >= 0.65).reduce((sum, item) => sum + item.precio * item.cantidadVendida, 0).toFixed(2)}
+                </span>
               </div>
-            ))}
-          </div>
-          <div className="px-5 py-3 shrink-0 bg-white/10 backdrop-blur-sm mx-5 rounded-2xl mb-2">
-            <div className="flex justify-between items-center">
-              <span className="text-white/70 text-sm">Subtotal</span>
-              <span className="text-white text-lg font-bold">
-                ${cart.reduce((sum, item) => sum + item.precio * item.cantidadVendida, 0).toFixed(2)}
-              </span>
             </div>
-          </div>
-          <div className="p-5 pb-10 flex gap-30 shrink-0">
+          )}
+          <div className="p-5 pb-10 flex gap-3 shrink-0">
             <button onClick={retake} className="flex items-center gap-2 px-4 py-3 rounded-3xl border border-white/30 text-white text-sm">
               <RotateCcw size={16} />
               Repetir
             </button>
-            <button onClick={confirmAndSendCart} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-3xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            <button
+              onClick={confirmAndSendCart}
+              disabled={cart.filter(i => i.confidence >= 0.65).length === 0}
+              className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white font-semibold py-3 rounded-3xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            >
               <Send size={20} />
+              Confirmar ({cart.filter(i => i.confidence >= 0.65).length})
             </button>
           </div>
         </div>

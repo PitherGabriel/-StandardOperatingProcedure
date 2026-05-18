@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { ShoppingCart, Trash2, Search, Plus, ChevronLeft, LayoutGrid } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
-import { usePrinter } from '../../hooks/usePrinter';
 import { processSale } from '../../services/salesService';
 import { generateSaleId } from '../../services/printerService';
 import PriceSelector from './PriceSelector';
@@ -21,16 +20,27 @@ const CAT_COLORS = [
   '#7C3AED','#D97706','#0EA5E9','#DC2626','#84CC16','#F59E0B',
 ];
 
-export default function PosBox({ inventory, setInventory, currentUser, showNotification }) {
-  const { cart, addToCart, removeFromCart, setCartQuantity, changePriceType, clearCart, total } = useCart(inventory);
+
+export default function PosBox({ inventory, setInventory, currentUser, showNotification, printer = {} }) {
+  const { cart, addToCart, removeFromCart, setCartQuantity, changePriceType, clearCart, total } = useCart(inventory, showNotification);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [receivedMoney, setReceivedMoney] = useState('');
   const [processingSale, setProcessingSale] = useState(false);
   const [completedSale, setCompletedSale] = useState(null);
-  const printer = usePrinter();
+  const [metodoPago, setMetodoPago] = useState('efectivo');
+  const [referencia, setReferencia] = useState('');
+  const [discountPct, setDiscountPct] = useState('');
+  const [showDiscount, setShowDiscount] = useState(false);
 
-  // Build sorted category list with counts and colors
+  const searchRef = useRef(null);
+  const receivedRef = useRef(null);
+
+  // Barcode scanner buffer — collects rapid keypresses from scan gun
+  const barcodeBuffer = useRef('');
+  const barcodeTimer = useRef(null);
+
+  // Build sorted category list with colors
   const categories = useMemo(() => {
     const map = {};
     for (const item of inventory) {
@@ -49,8 +59,6 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   );
 
   const hasCategories = categories.length > 0;
-
-  // What to show in the product panel
   const isSearching = searchTerm.trim() !== '';
   const isGridMode = !isSearching && selectedCategory === null && hasCategories;
 
@@ -63,8 +71,57 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     }
     if (selectedCategory === '__none__') return inventory.filter(i => !i.categoria);
     if (selectedCategory) return inventory.filter(i => i.categoria === selectedCategory);
-    return inventory; // fallback when no categories exist
+    return inventory;
   }, [inventory, searchTerm, selectedCategory]);
+
+  // Global keyboard shortcuts + barcode scanner detection
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const tag = document.activeElement?.tagName;
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+      // Barcode scanner: accumulate printable chars arriving fast
+      if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+        barcodeBuffer.current += e.key;
+        clearTimeout(barcodeTimer.current);
+        barcodeTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 120);
+      } else if (e.key === 'Enter' && barcodeBuffer.current.length >= 3) {
+        const code = barcodeBuffer.current.trim();
+        barcodeBuffer.current = '';
+        clearTimeout(barcodeTimer.current);
+        // Only intercept if not focused on received-money or other functional inputs
+        if (document.activeElement !== receivedRef.current) {
+          const product = inventory.find(p => p.codigo.toLowerCase() === code.toLowerCase());
+          if (product) {
+            e.preventDefault();
+            addToCart(product);
+            setSearchTerm('');
+            showNotification(`"${product.nombre}" añadido al carrito`, 'success');
+            return;
+          }
+        }
+      }
+
+      if (isTyping) return;
+
+      if (e.key === '/' || e.key === 'F3') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else if (e.key === 'Escape') {
+        if (searchTerm) setSearchTerm('');
+        else if (selectedCategory !== null) setSelectedCategory(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [searchTerm, selectedCategory, inventory, addToCart, showNotification]);
+
+  const handleRemoveFromCart = (id) => {
+    removeFromCart(id);
+    if (cart.length === 1) setReceivedMoney('');
+  };
+
 
   const handleAddToCart = (product) => {
     addToCart(product);
@@ -81,34 +138,41 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     setSearchTerm('');
   };
 
-  const change = Math.max(0, (parseFloat(receivedMoney) || 0) - total);
-  const lacking = (parseFloat(receivedMoney) || 0) < total && total > 0 && receivedMoney;
-  const hasChange = receivedMoney && parseFloat(receivedMoney) >= total && total > 0;
+  const discountAmount = total * (Math.min(100, Math.max(0, parseFloat(discountPct) || 0)) / 100);
+  const totalWithDiscount = Math.max(0, total - discountAmount);
+  const receivedAmt = parseFloat(receivedMoney) || 0;
+  const change = Math.max(0, receivedAmt - totalWithDiscount);
+  const lacking = receivedMoney && receivedAmt < totalWithDiscount && totalWithDiscount > 0;
 
   const handleProcessSale = async () => {
     if (cart.length === 0) { showNotification('El carrito está vacío', 'error'); return; }
     setProcessingSale(true);
-    const received = parseFloat(receivedMoney) || 0;
+    const received = receivedAmt;
+    const cartData = cart.map(item => ({
+      codigo: item.codigo,
+      cantidad_vendida: item.cantidadVendida,
+      nombre: item.nombre,
+      precio: item.precioActual || item.precio,
+      tipoPrecio: item.priceType,
+    }));
     const saleSnapshot = {
       items: cart.map(item => ({
         name: item.nombre, code: item.codigo, qty: item.cantidadVendida,
         unit: item.unidad, price: item.precioActual ?? item.precio,
       })),
-      total, received, change: Math.max(0, received - total),
+      cart: cartData,
+      vendedor: currentUser?.nombre || 'Sistema',
+      total: totalWithDiscount, received, change: Math.max(0, received - totalWithDiscount),
+      discountPct: parseFloat(discountPct) || 0,
+      metodoPago,
+      referencia,
       date: new Date().toLocaleDateString('es-EC'),
       time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
       cajero: currentUser?.nombre || 'Cajero',
       saleId: generateSaleId(),
     };
     try {
-      const cartData = cart.map(item => ({
-        codigo: item.codigo,
-        cantidad_vendida: item.cantidadVendida,
-        nombre: item.nombre,
-        precio: item.precioActual || item.precio,
-        tipoPrecio: item.priceType,
-      }));
-      const result = await processSale(cartData, currentUser?.nombre);
+      const result = await processSale(cartData, currentUser?.nombre, metodoPago, referencia, parseFloat(discountPct) || 0);
       if (result.success) {
         setInventory(inventory.map(item => {
           const cartItem = cart.find(c => c.id === item.id);
@@ -129,33 +193,47 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     setCompletedSale(null);
     clearCart();
     setReceivedMoney('');
+    setReferencia('');
+    setMetodoPago('efectivo');
+    setDiscountPct('');
+    setShowDiscount(false);
     setSearchTerm('');
     showNotification('¡Venta procesada exitosamente!', 'success');
   };
 
-  const ProductCard = ({ product }) => (
-    <div
-      onClick={() => product.cantidad > 0 && handleAddToCart(product)}
-      className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-all duration-150 ${
-        product.cantidad === 0
-          ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-60'
-          : 'bg-white border-gray-200 shadow-sm cursor-pointer hover:border-[#008cc8] hover:shadow-md'
-      }`}
-    >
-      <div className="flex flex-col min-w-0 flex-1">
-        <span className="font-semibold text-sm text-gray-800 truncate">{product.nombre}</span>
-        <span className="text-xs text-gray-500">{product.codigo}</span>
-        <span className="text-xs text-gray-500">Inventario: {product.cantidad} {product.unidad}</span>
+  const ProductCard = ({ product }) => {
+    const isOutOfStock = product.cantidad === 0;
+    const isLowStock = !isOutOfStock && product.cantidad <= product.minStock;
+    return (
+      <div
+        onClick={() => !isOutOfStock && handleAddToCart(product)}
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-all duration-150 ${
+          isOutOfStock
+            ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-60'
+            : 'bg-white border-gray-200 shadow-sm cursor-pointer hover:border-[#008cc8] hover:shadow-md'
+        }`}
+      >
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="font-semibold text-sm text-gray-800 truncate">{product.nombre}</span>
+          <span className="text-xs text-gray-500">{product.codigo}</span>
+          <span className={`text-xs font-medium ${
+            isOutOfStock ? 'text-red-400' : isLowStock ? 'text-orange-500' : 'text-gray-500'
+          }`}>
+            {isOutOfStock
+              ? 'Agotado'
+              : `${product.cantidad} ${product.unidad}${isLowStock ? ' · Stock bajo' : ''}`}
+          </span>
+        </div>
+        <span className="text-sm font-bold text-[#0075a7] shrink-0">${product.precio}</span>
+        <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold shrink-0 ${
+          isOutOfStock ? 'bg-gray-200 text-gray-400' : 'bg-[#0075a7] text-white'
+        }`}>
+          <Plus size={14} />
+          <span>Añadir</span>
+        </div>
       </div>
-      <span className="text-sm font-bold text-[#0075a7] shrink-0">${product.precio}</span>
-      <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold shrink-0 ${
-        product.cantidad === 0 ? 'bg-gray-200 text-gray-400' : 'bg-[#0075a7] text-white'
-      }`}>
-        <Plus size={14} />
-        <span>Añadir</span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -164,7 +242,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
         <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[45vh] lg:h-full">
 
           {/* Header */}
-          <div className="p-4 shrink-0 space-y-3">
+          <div className="p-4 shrink-0 space-y-2">
             <div className="flex items-center gap-2">
               {!isGridMode && selectedCategory !== null && (
                 <button
@@ -192,22 +270,25 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                 </button>
               )}
             </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
+                ref={searchRef}
                 type="text"
-                placeholder="Busca por nombre o código..."
+                placeholder="Busca por nombre o código... (tecla /)"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); if (e.target.value) setSelectedCategory(null); }}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setSearchTerm(''); e.target.blur(); } }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
               />
             </div>
+
           </div>
 
           {/* Body */}
           <div className="overflow-y-auto p-4 flex-1 min-h-0">
             {isGridMode ? (
-              /* Category grid */
               <div className="grid grid-cols-4 gap-5">
                 {categories.map(cat => (
                   <button
@@ -245,11 +326,11 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
         {/* Cart panel */}
         <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[55vh] lg:h-full">
           <div className="py-3 px-3 shrink-0">
-            <div className="hidden sm:grid grid-cols-12 gap-2 bg-white px-3 py-2 rounded-lg">
-              <div className="col-span-4 text-xs font-medium text-gray-1000 uppercase">Nombre</div>
-              <div className="col-span-3 text-center text-xs font-medium text-gray-1000 uppercase">Cantidad</div>
-              <div className="col-span-3 text-center text-xs font-medium text-gray-1000 uppercase">Precio</div>
-              <div className="col-span-2 text-right text-xs font-medium text-gray-1000 uppercase">Subtotal</div>
+            <div className="hidden sm:grid grid-cols-12 gap-2 bg-white px-3 py-1 rounded-lg">
+              <div className="col-span-4 text-xs font-medium text-gray-500 uppercase">Nombre</div>
+              <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</div>
+              <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Precio</div>
+              <div className="col-span-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</div>
             </div>
           </div>
 
@@ -259,6 +340,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                 <div className="text-center">
                   <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
                   <p>El carrito está vacío</p>
+                  <p className="text-xs text-gray-400 mt-1">Usa / para buscar o escanea un código de barras</p>
                 </div>
               </div>
             ) : (
@@ -271,7 +353,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                       <div className="sm:hidden space-y-2">
                         <div className="flex justify-between items-start">
                           <h3 className="font-semibold text-sm text-gray-800">{item.nombre}</h3>
-                          <button onClick={() => removeFromCart(item.id)} className="p-1 text-[#bb1c49] hover:bg-red-50 rounded">
+                          <button onClick={() => handleRemoveFromCart(item.id)} className="p-1 text-[#bb1c49] hover:bg-red-50 rounded">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -331,7 +413,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                           <p className="text-sm font-bold text-gray-800">
                             ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
                           </p>
-                          <button onClick={() => removeFromCart(item.id)} className="p-1 text-[#bb1c49] hover:bg-red-50 rounded">
+                          <button onClick={() => handleRemoveFromCart(item.id)} className="p-1 text-[#bb1c49] hover:bg-red-50 rounded">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -345,38 +427,109 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
           {/* Total & payment */}
           <div className="p-3 lg:p-4 space-y-2 shrink-0">
-            <div className="h-px bg-gray-800" />
+            <div className="h-px bg-gray-200" />
+
+            {/* Payment method selector */}
+            {cart.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+                  {[
+                    { id: 'efectivo', label: 'Efectivo' },
+                    { id: 'tarjeta', label: 'Tarjeta' },
+                    { id: 'transferencia', label: 'Transferencia' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => setMetodoPago(m.id)}
+                      className={`flex-1 py-1.5 transition ${
+                        metodoPago === m.id
+                          ? 'bg-[#008cc8] text-white'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                {metodoPago === 'transferencia' && (
+                  <input
+                    type="text"
+                    placeholder="Número de referencia (opcional)"
+                    value={referencia}
+                    onChange={(e) => setReferencia(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Discount toggle */}
+            {cart.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowDiscount(s => !s); if (showDiscount) setDiscountPct(''); }}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-md border transition ${
+                    showDiscount ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300 hover:border-orange-400 hover:text-orange-500'
+                  }`}
+                >
+                  % Descuento
+                </button>
+                {showDiscount && (
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={discountPct}
+                      onChange={e => setDiscountPct(e.target.value)}
+                      placeholder="0"
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400 font-semibold"
+                    />
+                    <span className="text-xs text-gray-500">% = -${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-between items-center">
               <span className="text-lg lg:text-2xl font-semibold">Total</span>
-              <span className="text-lg lg:text-2xl font-semibold text-[#2b2929]">$ {total.toFixed(2)}</span>
+              <div className="text-right">
+                {discountAmount > 0 && (
+                  <div className="text-xs text-gray-400 line-through text-right">${total.toFixed(2)}</div>
+                )}
+                <span className="text-lg lg:text-2xl font-semibold text-[#2b2929]">$ {totalWithDiscount.toFixed(2)}</span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-base lg:text-lg font-semibold text-gray-700">Recibe</span>
+
+            {/* Recibe + Vuelto — side by side, same design */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-base lg:text-lg font-semibold text-gray-700 shrink-0">Recibe</span>
                 <input
+                  ref={receivedRef}
                   type="number"
                   step="0.01"
                   value={receivedMoney}
                   onChange={(e) => setReceivedMoney(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && receivedMoney && cart.length > 0 && !processingSale) {
+                      handleProcessSale();
+                    }
+                  }}
                   placeholder="0.00"
-                  className="w-28 lg:w-32 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-right font-semibold"
+                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-right font-semibold"
                   disabled={cart.length === 0}
                 />
               </div>
-              {hasChange && (
-                <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                  <span className="text-sm font-medium text-green-800">Vuelto</span>
-                  <span className="text-lg font-bold text-green-600">${change.toFixed(2)}</span>
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-base lg:text-lg font-semibold text-gray-700 shrink-0">
+                  {lacking ? 'Falta' : 'Vuelto'}
+                </span>
+                <div className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg text-base text-right font-semibold bg-gray-50">
+                  ${lacking ? (totalWithDiscount - receivedAmt).toFixed(2) : change.toFixed(2)}
                 </div>
-              )}
-              {lacking && (
-                <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <span className="text-sm font-medium text-red-800">Falta</span>
-                  <span className="text-lg font-bold text-red-600">
-                    ${(total - parseFloat(receivedMoney)).toFixed(2)}
-                  </span>
-                </div>
-              )}
+              </div>
             </div>
 
             {processingSale && (
@@ -422,13 +575,12 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
         <PostSaleModal
           sale={completedSale}
           biz={BUSINESS}
-          connected={printer.connected}
-          printing={printer.printing}
-          error={printer.error}
-          isSupported={printer.isSupported}
-          onConnect={printer.connect}
-          onPrint={() => printer.printReceipt(completedSale, BUSINESS).catch(() => {})}
+          printing={printer.printing ?? false}
+          error={printer.error ?? null}
+          isSupported={printer.isSupported ?? false}
+          onPrint={() => printer.printReceipt?.(completedSale, BUSINESS).catch(() => {})}
           onClose={dismissSaleModal}
+          showNotification={showNotification}
         />
       )}
     </>
