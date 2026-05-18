@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { History, RotateCcw, X, Loader, ChevronDown, ChevronRight } from 'lucide-react';
 import { refundSale } from '../services/salesService';
+import { HistoryRowSkeleton } from '../components/ui/Skeleton';
 
 // ── Refund Modal ──────────────────────────────────────────────────────────────
 function RefundModal({ sale, onClose, onRefunded, showNotification }) {
@@ -93,7 +94,7 @@ function RefundModal({ sale, onClose, onRefunded, showNotification }) {
 
 // ── History Page ──────────────────────────────────────────────────────────────
 export default function HistoryPage({
-  salesHistory,
+  loading = false,
   filteredHistory,
   filterStartDate, setFilterStartDate,
   filterEndDate, setFilterEndDate,
@@ -158,7 +159,9 @@ export default function HistoryPage({
         </div>
 
         <div className="divide-y divide-gray-100">
-          {groupedSales.length === 0 ? (
+          {loading ? (
+            [0, 1, 2, 3, 4].map(i => <HistoryRowSkeleton key={i} />)
+          ) : groupedSales.length === 0 ? (
             <div className="text-center py-12">
               <History size={48} className="mx-auto mb-2 text-gray-400" />
               <p className="text-gray-500">No hay ventas en el rango seleccionado</p>

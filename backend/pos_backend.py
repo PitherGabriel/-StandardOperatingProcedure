@@ -271,7 +271,7 @@ class InventoryManager:
 
             
             # Preparar fila para insertar
-            # Estructura: ID, Codigo, Nombre, Cantidad, Unidad, Costo, Precio_1, Precio_2, Precio_3, MinStock, UltimaActualizacion, Categoria, Subcategoria
+            # Estructura: ID, Codigo, Nombre, Cantidad, Unidad, Costo, Precio_1, Precio_2, Precio_3, MinStock, UltimaActualizacion, Categoria, Subcategoria, Descuento
             row = [
                 next_id,
                 product_data['codigo'],
@@ -283,9 +283,10 @@ class InventoryManager:
                 product_data['precio_2'],
                 product_data['precio_3'],
                 product_data['minStock'],
-                ultima_actualizacion, 
+                ultima_actualizacion,
                 product_data.get('categoria', ''),
                 product_data.get('subcategoria', ''),
+                float(product_data.get('descuento', 0) or 0),
             ]
             
             print(f'Producto para insertar: {row}')
@@ -322,7 +323,7 @@ class InventoryManager:
             now = datetime.now(BUSINESS_TZ).strftime('%Y-%m-%d %H:%M:%S')
             # Inventario columns: ID(1) Codigo(2) Nombre(3) Cantidad(4) Unidad(5)
             #   Costo(6) Precio_1(7) Precio_2(8) Precio_3(9) MinStock(10) UltimaActualizacion(11)
-            #   Categoria(12) Subcategoria(13)
+            #   Categoria(12) Subcategoria(13) Descuento(14)
             batch = []
             if 'nombre' in updates:
                 batch.append({'range': f'C{row}', 'values': [[updates['nombre']]]})
@@ -340,6 +341,8 @@ class InventoryManager:
                 batch.append({'range': f'L{row}', 'values': [[updates['categoria']]]})
             if 'subcategoria' in updates:
                 batch.append({'range': f'M{row}', 'values': [[updates['subcategoria']]]})
+            if 'descuento' in updates:
+                batch.append({'range': f'N{row}', 'values': [[float(updates['descuento'] or 0)]]})
             batch.append({'range': f'K{row}', 'values': [[now]]})
 
             if batch:
@@ -433,6 +436,7 @@ class InventoryManager:
             price_2 = float(row_values[7]) if row_values[7] else 0.0
             price_3 = float(row_values[8]) if row_values[8] else 0.0
             min_stock = float(row_values[9])
+            descuento = float(row_values[13]) if len(row_values) > 13 and row_values[13] else 0.0
             quantity_sold = float(quantity_sold)
             
             if unidad == "unidad" and not quantity_sold.is_integer():
@@ -467,14 +471,18 @@ class InventoryManager:
                 selected_price = price_3
             else:
                 selected_price = price_1
-            
+
+            if descuento > 0:
+                selected_price = round(selected_price * (1 - descuento / 100), 4)
+
             return {
                     'success': True,
                     'product_id': product_id,
                     'product_code': product_code,
                     'product_name': product_name,
                     'price': selected_price,
-                    'quantity_sold':quantity_sold,
+                    'descuento': descuento,
+                    'quantity_sold': quantity_sold,
                     'new_quantity': new_qty,
                     'alert': alert
                 }
@@ -485,7 +493,7 @@ class InventoryManager:
                 'error': str(e)
             }
         
-    def save_sale(self, sale_id, sale_details, total, vendedor='Sistema', metodo_pago='efectivo', referencia='', descuento=0):
+    def save_sale(self, sale_id, sale_details, total, vendedor='Sistema', metodo_pago='efectivo', referencia=''):
         """Guarda el detalle de la venta en la hoja de Ventas"""
 
         try:
@@ -509,7 +517,7 @@ class InventoryManager:
                     vendedor,                                         # Vendedor
                     metodo_pago,                                      # MetodoPago
                     referencia,                                       # Referencia
-                    descuento,                                        # Descuento
+                    item.get('descuento', 0),                        # Descuento (per-product %)
                 ]
                 rows.append(row)
             
@@ -532,7 +540,7 @@ class InventoryManager:
                 'error': str(e)
             }
         
-    def process_sale(self, cart_items, vendedor='Sistema', metodo_pago='efectivo', referencia='', descuento_porcentaje=0):
+    def process_sale(self, cart_items, vendedor='Sistema', metodo_pago='efectivo', referencia=''):
         """Procesa una venta completa"""
 
         sale_id = f"VTA-{datetime.now(BUSINESS_TZ).strftime('%Y%m%d')}-{str(uuid.uuid4())[:8]}"
@@ -569,6 +577,7 @@ class InventoryManager:
                 'product_code': result['product_code'],
                 'product_name': result['product_name'],
                 'price': result['price'],
+                'descuento': result['descuento'],
                 'quantity_sold': result['quantity_sold']
             })
             
@@ -581,12 +590,9 @@ class InventoryManager:
 
         print("Inventario actualizado")
         
-        # Apply discount
-        descuento_porcentaje = max(0, min(100, float(descuento_porcentaje or 0)))
-        descuento_monto = round(total_sale * (descuento_porcentaje / 100), 2)
-        total_con_descuento = round(total_sale - descuento_monto, 2)
+        total_con_descuento = round(total_sale, 2)
 
-        save_result = self.save_sale(sale_id, sale_details, total_con_descuento, vendedor, metodo_pago, referencia, descuento_monto)
+        save_result = self.save_sale(sale_id, sale_details, total_con_descuento, vendedor, metodo_pago, referencia)
 
         if not save_result['success']:
             return {
@@ -599,7 +605,7 @@ class InventoryManager:
             'sale_id': sale_id,
             'total': total_con_descuento,
             'subtotal': total_sale,
-            'descuento': descuento_monto,
+            'descuento': 0,
             'items': len(results),
             'results': results,
             'alerts': alerts
@@ -741,7 +747,82 @@ class InventoryManager:
             return {
                 'error': str(e)
             }
-            
+
+    def get_sales_chart(self, period='today'):
+        """Returns time-series sales data for charts (revenue + sales count per bucket)"""
+        from datetime import datetime, timedelta
+
+        now = datetime.now(BUSINESS_TZ)
+
+        if period == 'today':
+            date_str = now.strftime('%Y-%m-%d')
+            records = self.get_sales_history(date_from=date_str, date_to=date_str)
+            buckets = {str(h).zfill(2): {'revenue': 0.0, 'sales': set()} for h in range(24)}
+            for r in records:
+                hora = str(r.get('Hora', ''))
+                h = hora.split(':')[0].zfill(2) if hora else None
+                if h and h in buckets:
+                    buckets[h]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                    buckets[h]['sales'].add(str(r.get('VentaID', '')))
+            labels = [f"{h}:00" for h in range(24)]
+            revenue = [round(buckets[str(h).zfill(2)]['revenue'], 2) for h in range(24)]
+            counts = [len(buckets[str(h).zfill(2)]['sales']) for h in range(24)]
+
+        elif period == 'week':
+            start = now - timedelta(days=now.weekday())
+            date_from = start.strftime('%Y-%m-%d')
+            date_to = now.strftime('%Y-%m-%d')
+            records = self.get_sales_history(date_from=date_from, date_to=date_to)
+            days_count = now.weekday() + 1
+            day_dates = [(start + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days_count)]
+            day_names = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+            buckets = {d: {'revenue': 0.0, 'sales': set()} for d in day_dates}
+            for r in records:
+                d = str(r.get('Fecha', ''))
+                if d in buckets:
+                    buckets[d]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                    buckets[d]['sales'].add(str(r.get('VentaID', '')))
+            labels = [day_names[(start + timedelta(days=i)).weekday()] for i in range(days_count)]
+            revenue = [round(buckets[d]['revenue'], 2) for d in day_dates]
+            counts = [len(buckets[d]['sales']) for d in day_dates]
+
+        elif period == 'month':
+            start = now.replace(day=1)
+            date_from = start.strftime('%Y-%m-%d')
+            date_to = now.strftime('%Y-%m-%d')
+            records = self.get_sales_history(date_from=date_from, date_to=date_to)
+            days_count = now.day
+            day_dates = [(start + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days_count)]
+            buckets = {d: {'revenue': 0.0, 'sales': set()} for d in day_dates}
+            for r in records:
+                d = str(r.get('Fecha', ''))
+                if d in buckets:
+                    buckets[d]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                    buckets[d]['sales'].add(str(r.get('VentaID', '')))
+            labels = [(start + timedelta(days=i)).strftime('%d/%m') for i in range(days_count)]
+            revenue = [round(buckets[d]['revenue'], 2) for d in day_dates]
+            counts = [len(buckets[d]['sales']) for d in day_dates]
+
+        else:
+            return {'success': False, 'error': 'Período no válido'}
+
+        total_revenue = round(sum(revenue), 2)
+        all_sale_ids = set(str(r.get('VentaID', '')) for r in records if r.get('VentaID'))
+        total_sales = len(all_sale_ids)
+        avg_ticket = round(total_revenue / total_sales, 2) if total_sales > 0 else 0
+
+        return {
+            'success': True,
+            'data': {
+                'labels': labels,
+                'revenue': revenue,
+                'sales_count': counts,
+                'total_revenue': total_revenue,
+                'total_sales': total_sales,
+                'avg_ticket': avg_ticket,
+            }
+        }
+
     def _get_or_create_categories_sheet(self):
         try:
             return self.spreadsheet.worksheet('Categorias')

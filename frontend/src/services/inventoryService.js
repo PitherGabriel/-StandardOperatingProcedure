@@ -17,6 +17,7 @@ export async function fetchInventory() {
     codigo: item.Codigo,
     categoria: item.Categoria || '',
     subcategoria: item.Subcategoria || '',
+    descuento: parseFloat(item.Descuento || 0),
   }));
 }
 

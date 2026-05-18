@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useNotification } from './hooks/useNotification';
 import { useSales } from './hooks/useSales';
@@ -14,6 +13,7 @@ import InventoryForm from './components/inventory/InventoryForm';
 import HistoryPage from './pages/HistoryPage';
 import ProfitsPage from './pages/ProfitsPage';
 import CategoriasPage from './pages/CategoriasPage';
+import DashboardPage from './pages/DashboardPage';
 
 const POSSystem = () => {
   const auth = useAuth();
@@ -23,7 +23,9 @@ const POSSystem = () => {
   const [activeTab, setActiveTab] = useState('pos');
   const [activeSubTab, setActiveSubTab] = useState('ver-inventario');
 
-  const lowStock = auth.inventory.filter(item => item.cantidad <= item.minStock);
+  const alerts = auth.inventory
+    .filter(item => item.cantidad <= item.minStock)
+    .map(item => ({ codigo: item.codigo, nombre: item.nombre, cantidad: item.cantidad, minStock: item.minStock }));
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -50,6 +52,7 @@ const POSSystem = () => {
         printer={printer}
         onPrinterConnect={printer.connect}
         showNotification={showNotification}
+        alerts={alerts}
       />
 
       <TabNav
@@ -59,16 +62,9 @@ const POSSystem = () => {
         onSubTabChange={setActiveSubTab}
       />
 
-      {activeTab === 'productos' && activeSubTab === 'ver-inventario' && lowStock.length > 0 && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mx-6 mt-4 rounded shrink-0">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="text-yellow-600" />
-            <p className="text-yellow-800 font-semibold">{lowStock.length} productos con stock bajo</p>
-          </div>
-        </div>
-      )}
+<div className="p-4 flex-1 min-h-0 overflow-auto">
+        {activeTab === 'dashboard' && <DashboardPage />}
 
-      <div className="p-4 flex-1 min-h-0 overflow-auto">
         {activeTab === 'pos' && (
           <PosBox
             inventory={auth.inventory}
@@ -76,6 +72,7 @@ const POSSystem = () => {
             currentUser={auth.currentUser}
             showNotification={showNotification}
             printer={printer}
+            inventoryLoading={auth.inventoryLoading}
           />
         )}
 
@@ -98,7 +95,7 @@ const POSSystem = () => {
 
         {activeTab === 'history' && (
           <HistoryPage
-            salesHistory={sales.salesHistory}
+            loading={sales.historyLoading}
             filteredHistory={sales.filteredHistory}
             filterStartDate={sales.filterStartDate}
             setFilterStartDate={sales.setFilterStartDate}
@@ -110,6 +107,7 @@ const POSSystem = () => {
         )}
         {activeTab === 'profits' && (
           <ProfitsPage
+            loading={sales.profitsLoading}
             profitAnalysis={sales.profitAnalysis}
             selectedPeriod={sales.selectedPeriod}
             setSelectedPeriod={sales.setSelectedPeriod}

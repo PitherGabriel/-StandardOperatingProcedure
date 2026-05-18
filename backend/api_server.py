@@ -25,7 +25,7 @@ def create_app():
         SESSION_COOKIE_NAME='pos_session',
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax',
-        SESSION_COOKIE_SECURE=False,   # change to True when HTTPS
+        SESSION_COOKIE_SECURE=os.environ.get('FLASK_ENV') == 'production',
         SESSION_COOKIE_PATH='/',      # 👈 THIS LINE
         SESSION_PERMANENT=True,
         PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 7,  # 7 days
@@ -192,6 +192,7 @@ def create_app():
                 'unidad': data['unidad'],
                 'categoria': data.get('categoria', ''),
                 'subcategoria': data.get('subcategoria', ''),
+                'descuento': float(data.get('descuento', 0) or 0),
             }
             
             # Guardar producto usando la clase de Google Sheets
@@ -250,7 +251,6 @@ def create_app():
                 vendedor = request.json.get('vendedor', 'Sistema')
                 metodo_pago = request.json.get('metodoPago', 'efectivo')
                 referencia = request.json.get('referencia', '')
-                descuento_porcentaje = float(request.json.get('descuentoPorcentaje', 0) or 0)
 
             else:
                 image = request.files.get('image')
@@ -264,10 +264,9 @@ def create_app():
                 vendedor = request.form.get('vendedor', 'Sistema')
                 metodo_pago = request.form.get('metodoPago', 'efectivo')
                 referencia = request.form.get('referencia', '')
-                descuento_porcentaje = float(request.form.get('descuentoPorcentaje', 0) or 0)
 
             print(f"Carrito de compra : {cart}")
-            result = inventory.process_sale(cart, vendedor, metodo_pago, referencia, descuento_porcentaje)
+            result = inventory.process_sale(cart, vendedor, metodo_pago, referencia)
 
             return jsonify(result)
         except Exception as e:
@@ -317,6 +316,15 @@ def create_app():
 
             history = inventory.get_sales_history(limit, date_from, date_to)
             return jsonify({'success': True, 'data': history})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/sales/chart', methods=['GET'])
+    def get_sales_chart():
+        try:
+            period = request.args.get('period', 'today')
+            result = inventory.get_sales_chart(period)
+            return jsonify(result)
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -410,7 +418,6 @@ def create_app():
             vendedor = data.get('vendedor', 'Sistema')
             metodo_pago = data.get('metodoPago', 'efectivo')
             referencia = data.get('referencia', '')
-            descuento_porcentaje = float(data.get('descuentoPorcentaje', 0) or 0)
             cliente = data.get('cliente', None)
 
             if not cliente:
@@ -421,7 +428,7 @@ def create_app():
                     return jsonify({'success': False, 'error': f'Campo {campo} del cliente es obligatorio'}), 400
 
             # 1. Procesar venta normal
-            sale_result = inventory.process_sale(cart, vendedor, metodo_pago, referencia, descuento_porcentaje)
+            sale_result = inventory.process_sale(cart, vendedor, metodo_pago, referencia)
             if not sale_result['success']:
                 return jsonify(sale_result), 400
 

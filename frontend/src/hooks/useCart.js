@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const round2 = v => Math.round(v * 100) / 100;
+
 export function useCart(inventory, onError) {
   const [cart, setCart] = useState([]);
 
@@ -22,11 +24,12 @@ export function useCart(inventory, onError) {
           : i
       ));
     } else {
+      const descuento = product.descuento || 0;
       setCart(c => [...c, {
         ...product,
         cantidadVendida: 1,
         priceType: 'precio',
-        precioActual: product.precio,
+        precioActual: descuento > 0 ? round2(product.precio * (1 - descuento / 100)) : product.precio,
       }]);
     }
   };
@@ -55,11 +58,13 @@ export function useCart(inventory, onError) {
   };
 
   const changePriceType = (productId, newPriceType) => {
-    setCart(c => c.map(i =>
-      i.id === productId
-        ? { ...i, priceType: newPriceType, precioActual: i[newPriceType] }
-        : i
-    ));
+    setCart(c => c.map(i => {
+      if (i.id !== productId) return i;
+      const basePrice = i[newPriceType];
+      const descuento = i.descuento || 0;
+      const precioActual = descuento > 0 ? round2(basePrice * (1 - descuento / 100)) : basePrice;
+      return { ...i, priceType: newPriceType, precioActual };
+    }));
   };
 
   const clearCart = () => setCart([]);

@@ -7,6 +7,7 @@ import PriceSelector from './PriceSelector';
 import QuantityInput from './QuantitySelector';
 import CameraModal from '../camera/CameraModal';
 import PostSaleModal from '../receipt/PostSaleModal';
+import { ProductRowSkeleton } from '../ui/Skeleton';
 
 const BUSINESS = {
   name: import.meta.env.VITE_BUSINESS_NAME || 'Mi Tienda',
@@ -21,7 +22,7 @@ const CAT_COLORS = [
 ];
 
 
-export default function PosBox({ inventory, setInventory, currentUser, showNotification, printer = {} }) {
+export default function PosBox({ inventory, setInventory, currentUser, showNotification, printer = {}, inventoryLoading = false }) {
   const { cart, addToCart, removeFromCart, setCartQuantity, changePriceType, clearCart, total } = useCart(inventory, showNotification);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -30,8 +31,6 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const [completedSale, setCompletedSale] = useState(null);
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [referencia, setReferencia] = useState('');
-  const [discountPct, setDiscountPct] = useState('');
-  const [showDiscount, setShowDiscount] = useState(false);
 
   const searchRef = useRef(null);
   const receivedRef = useRef(null);
@@ -63,7 +62,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const isGridMode = !isSearching && selectedCategory === null && hasCategories;
 
   const displayProducts = useMemo(() => {
-    if (isSearching) {
+    if (searchTerm.trim() !== '') {
       const q = searchTerm.toLowerCase();
       return inventory.filter(i =>
         i.nombre.toLowerCase().includes(q) || i.codigo.toLowerCase().includes(q)
@@ -138,11 +137,9 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     setSearchTerm('');
   };
 
-  const discountAmount = total * (Math.min(100, Math.max(0, parseFloat(discountPct) || 0)) / 100);
-  const totalWithDiscount = Math.max(0, total - discountAmount);
   const receivedAmt = parseFloat(receivedMoney) || 0;
-  const change = Math.max(0, receivedAmt - totalWithDiscount);
-  const lacking = receivedMoney && receivedAmt < totalWithDiscount && totalWithDiscount > 0;
+  const change = Math.max(0, receivedAmt - total);
+  const lacking = receivedMoney && receivedAmt < total && total > 0;
 
   const handleProcessSale = async () => {
     if (cart.length === 0) { showNotification('El carrito está vacío', 'error'); return; }
@@ -162,8 +159,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
       })),
       cart: cartData,
       vendedor: currentUser?.nombre || 'Sistema',
-      total: totalWithDiscount, received, change: Math.max(0, received - totalWithDiscount),
-      discountPct: parseFloat(discountPct) || 0,
+      total, received, change: Math.max(0, received - total),
       metodoPago,
       referencia,
       date: new Date().toLocaleDateString('es-EC'),
@@ -172,7 +168,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
       saleId: generateSaleId(),
     };
     try {
-      const result = await processSale(cartData, currentUser?.nombre, metodoPago, referencia, parseFloat(discountPct) || 0);
+      const result = await processSale(cartData, currentUser?.nombre, metodoPago, referencia);
       if (result.success) {
         setInventory(inventory.map(item => {
           const cartItem = cart.find(c => c.id === item.id);
@@ -195,8 +191,6 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     setReceivedMoney('');
     setReferencia('');
     setMetodoPago('efectivo');
-    setDiscountPct('');
-    setShowDiscount(false);
     setSearchTerm('');
     showNotification('¡Venta procesada exitosamente!', 'success');
   };
@@ -288,7 +282,11 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
           {/* Body */}
           <div className="overflow-y-auto p-4 flex-1 min-h-0">
-            {isGridMode ? (
+            {inventoryLoading ? (
+              <div className="flex flex-col gap-2">
+                {Array.from({ length: 6 }).map((_, i) => <ProductRowSkeleton key={i} />)}
+              </div>
+            ) : isGridMode ? (
               <div className="grid grid-cols-4 gap-5">
                 {categories.map(cat => (
                   <button
@@ -463,43 +461,9 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
               </div>
             )}
 
-            {/* Discount toggle */}
-            {cart.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setShowDiscount(s => !s); if (showDiscount) setDiscountPct(''); }}
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-md border transition ${
-                    showDiscount ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300 hover:border-orange-400 hover:text-orange-500'
-                  }`}
-                >
-                  % Descuento
-                </button>
-                {showDiscount && (
-                  <div className="flex items-center gap-1.5 flex-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      value={discountPct}
-                      onChange={e => setDiscountPct(e.target.value)}
-                      placeholder="0"
-                      className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400 font-semibold"
-                    />
-                    <span className="text-xs text-gray-500">% = -${discountAmount.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
             <div className="flex justify-between items-center">
               <span className="text-lg lg:text-2xl font-semibold">Total</span>
-              <div className="text-right">
-                {discountAmount > 0 && (
-                  <div className="text-xs text-gray-400 line-through text-right">${total.toFixed(2)}</div>
-                )}
-                <span className="text-lg lg:text-2xl font-semibold text-[#2b2929]">$ {totalWithDiscount.toFixed(2)}</span>
-              </div>
+              <span className="text-lg lg:text-2xl font-semibold text-[#2b2929]">$ {total.toFixed(2)}</span>
             </div>
 
             {/* Recibe + Vuelto — side by side, same design */}
@@ -527,7 +491,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                   {lacking ? 'Falta' : 'Vuelto'}
                 </span>
                 <div className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg text-base text-right font-semibold bg-gray-50">
-                  ${lacking ? (totalWithDiscount - receivedAmt).toFixed(2) : change.toFixed(2)}
+                  ${lacking ? (total - receivedAmt).toFixed(2) : change.toFixed(2)}
                 </div>
               </div>
             </div>

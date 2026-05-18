@@ -24,6 +24,7 @@ function EditProductModal({ product, onClose, onSaved, showNotification }) {
     subcategoria: product.subcategoria ?? '',
     hasPrecio2: (product.precio_2 ?? 0) > 0,
     hasPrecio3: (product.precio_3 ?? 0) > 0,
+    descuento: product.descuento ?? 0,
   });
   const [processing, setProcessing] = useState(false);
   const [categories, setCategories] = useState({});
@@ -55,6 +56,7 @@ function EditProductModal({ product, onClose, onSaved, showNotification }) {
         minStock: parseInt(form.minStock) || 0,
         categoria: form.categoria,
         subcategoria: form.subcategoria,
+        descuento: parseFloat(form.descuento) || 0,
       });
       if (result.success) {
         showNotification('Producto actualizado correctamente', 'success');
@@ -99,6 +101,12 @@ function EditProductModal({ product, onClose, onSaved, showNotification }) {
               <input type="number" value={form.minStock} onChange={e => set('minStock', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8] text-sm" placeholder="0" />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
+            <input type="number" min="0" max="100" step="0.5" value={form.descuento} onChange={e => set('descuento', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8] text-sm" placeholder="0" />
           </div>
 
           {/* Precio 1 */}

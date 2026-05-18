@@ -1,6 +1,12 @@
+import { useEffect } from 'react';
 import { AlertCircle, Check, X } from 'lucide-react';
 
 export default function NotificationToast({ notification, setNotification }) {
+  useEffect(() => {
+    const timer = setTimeout(() => setNotification(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notification, setNotification]);
+
   return (
     <div className="fixed top-4 right-4 z-50 animate-slide-in">
       <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${

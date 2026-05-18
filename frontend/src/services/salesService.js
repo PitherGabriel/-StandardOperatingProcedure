@@ -22,6 +22,11 @@ export async function processInvoicedSale(cartData, vendedor, metodoPago = 'efec
   return res.json();
 }
 
+export async function fetchSalesChart(period) {
+  const res = await api.get(`/sales/chart?period=${period}`);
+  return res.json();
+}
+
 export async function fetchProfitAnalysis(period, startDate, endDate) {
   let url = `/sales/profit-analysis?period=${period}`;
   if (period === 'custom' && startDate && endDate) {

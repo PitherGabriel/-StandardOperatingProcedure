@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Minus, TrendingUp, CircleDollarSign, Download, Loader, Banknote, CreditCard, ArrowRightLeft } from 'lucide-react';
+import { KpiCardSkeleton } from '../components/ui/Skeleton';
 
 const METODO_CONFIG = {
   efectivo:      { label: 'Efectivo',      Icon: Banknote,       borderCls: 'border-green-500',  bgCls: 'bg-green-50',  textCls: 'text-green-700',  iconCls: 'text-green-500'  },
@@ -17,6 +18,7 @@ const PERIODS = [
 const BASE = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/$/, '');
 
 export default function ProfitsPage({
+  loading = false,
   profitAnalysis,
   selectedPeriod, setSelectedPeriod,
   customStartDate, setCustomStartDate,
@@ -117,7 +119,13 @@ export default function ProfitsPage({
         )}
       </div>
 
-      {profitAnalysis && (
+      {loading && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map(i => <KpiCardSkeleton key={i} />)}
+        </div>
+      )}
+
+      {!loading && profitAnalysis && (
         <>
           <div className="bg-linear-to-r from-[#008cc8] to-[#0070a0] text-white p-6 rounded-lg shadow-lg">
             <h3 className="text-2xl font-bold text-center">{profitAnalysis.periodo}</h3>
@@ -129,14 +137,14 @@ export default function ProfitsPage({
               { label: 'Costos', value: `$${profitAnalysis.total_costos}`, color: 'red', Icon: Minus },
               { label: 'Utilidad Neta', value: `$${profitAnalysis.utilidad_neta}`, color: 'green', Icon: CircleDollarSign },
               { label: 'Margen', value: `${profitAnalysis.margen_total}%`, color: 'purple', Icon: TrendingUp },
-            ].map(({ label, value, color, Icon }) => (
-              <div key={label} className={`bg-white p-6 rounded-lg shadow-lg border-l-4 border-${color}-500`}>
+            ].map((kpi) => (
+              <div key={kpi.label} className={`bg-white p-6 rounded-lg shadow-lg border-l-4 border-${kpi.color}-500`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-500 text-sm font-medium">{label}</p>
-                    <p className={`text-2xl font-bold text-${color}-600 mt-1`}>{value}</p>
+                    <p className="text-gray-500 text-sm font-medium">{kpi.label}</p>
+                    <p className={`text-2xl font-bold text-${kpi.color}-600 mt-1`}>{kpi.value}</p>
                   </div>
-                  <Icon className={`text-${color}-500`} size={32} />
+                  <kpi.Icon className={`text-${kpi.color}-500`} size={32} />
                 </div>
               </div>
             ))}

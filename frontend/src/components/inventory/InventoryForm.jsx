@@ -7,6 +7,7 @@ const EMPTY = {
   precio1: '', precio2: '', precio3: '', cantidad: '', minStock: '',
   hasPrecio2: false, hasPrecio3: false,
   categoria: '', subcategoria: '',
+  descuento: '',
 };
 
 function generateCode(nombre) {
@@ -52,6 +53,7 @@ export default function InventoryForm({ onAdded, showNotification }) {
         unidad: form.unidad,
         categoria: form.categoria,
         subcategoria: form.subcategoria,
+        descuento: parseFloat(form.descuento) || 0,
       });
       if (result.success) {
         showNotification(`Producto agregado!\nCódigo: ${form.codigo}`, 'success');
@@ -115,6 +117,20 @@ export default function InventoryForm({ onAdded, showNotification }) {
                 placeholder="0"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Descuento (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={form.descuento}
+              onChange={(e) => set('descuento', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
+              placeholder="0"
+            />
           </div>
 
           <div>

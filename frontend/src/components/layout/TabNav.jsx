@@ -3,6 +3,7 @@ const MAIN_TABS = [
   { id: 'productos', label: 'Productos' },
   { id: 'history', label: 'Historial' },
   { id: 'profits', label: 'Utilidades' },
+  { id: 'dashboard', label: 'Dashboard' },
 ];
 
 const PRODUCT_SUBTABS = [

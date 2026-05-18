@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronRight, Loader, Plus, X } from 'lucide-react';
 import { fetchCategories, addCategory } from '../services/inventoryService';
 
@@ -47,15 +47,15 @@ export default function CategoriasPage({ showNotification }) {
   const [showEmoji, setShowEmoji] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadCategories = () => {
+  const loadCategories = useCallback(() => {
     setLoading(true);
     fetchCategories()
       .then(setCategories)
       .catch(() => showNotification('Error al cargar categorías', 'error'))
       .finally(() => setLoading(false));
-  };
+  }, [showNotification]);
 
-  useEffect(() => { loadCategories(); }, []);
+  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   const toggleExpand = (cat) =>
     setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));

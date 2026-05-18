@@ -8,11 +8,12 @@ export function usePrinter() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    service.current.tryAutoConnect().then(ok => {
+    const svc = service.current;
+    svc.tryAutoConnect().then(ok => {
       if (ok) setConnected(true);
     });
     return () => {
-      service.current.disconnect().catch(() => {});
+      svc.disconnect().catch(() => {});
     };
   }, []);
 

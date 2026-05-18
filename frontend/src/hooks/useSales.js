@@ -9,17 +9,23 @@ export function useSales() {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [profitsLoading, setProfitsLoading] = useState(false);
 
   const loadHistory = async (limit = 50) => {
+    setHistoryLoading(true);
     try {
       const data = await fetchSalesHistory(limit);
       if (data.success) setSalesHistory(data.data);
     } catch (e) {
       console.error('Error loading sales history:', e);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
   const loadProfits = async (period = selectedPeriod) => {
+    setProfitsLoading(true);
     try {
       const data = await fetchProfitAnalysis(
         period,
@@ -29,6 +35,8 @@ export function useSales() {
       if (data.success) setProfitAnalysis(data.data);
     } catch (e) {
       console.error('Error loading profit analysis:', e);
+    } finally {
+      setProfitsLoading(false);
     }
   };
 
@@ -45,6 +53,8 @@ export function useSales() {
 
   return {
     salesHistory,
+    historyLoading,
+    profitsLoading,
     filteredHistory,
     filterStartDate, setFilterStartDate,
     filterEndDate, setFilterEndDate,
