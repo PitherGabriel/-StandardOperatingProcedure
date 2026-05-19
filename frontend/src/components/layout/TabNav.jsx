@@ -16,12 +16,12 @@ export default function TabNav({ activeTab, activeSubTab, onTabChange, onSubTabC
   return (
     <div className="bg-white shadow">
       {/* Main tabs */}
-      <div className="flex sm:justify-center items-center gap-1 px-6 overflow-x-auto">
+      <div className="flex sm:justify-center items-center gap-0 sm:gap-1 px-2 sm:px-6 overflow-x-auto">
         {MAIN_TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`px-6 py-3 font-semibold transition whitespace-nowrap ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 text-sm sm:text-base font-semibold transition whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-b-2 border-[#008cc8] text-[#008cc8]'
                 : 'text-gray-600 hover:text-[#008cc8]'

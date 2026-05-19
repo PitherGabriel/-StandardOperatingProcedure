@@ -64,7 +64,7 @@ export default function CameraModal({ inventory, setInventory, showNotification,
       const result = await processSale(cartData, currentUser?.nombre);
       if (result.success) {
         setInventory(inventory.map(item => {
-          const cartItem = cart.find(c => c.id === item.id);
+          const cartItem = cart.find(c => c.codigo === item.codigo);
           return cartItem ? { ...item, cantidad: item.cantidad - cartItem.cantidadVendida } : item;
         }));
         showNotification('¡Venta procesada exitosamente!', 'success');

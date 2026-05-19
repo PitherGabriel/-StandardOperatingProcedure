@@ -28,23 +28,23 @@ export default function Header({ currentUser, onLogout, printer, showNotificatio
   const lowStock = alerts.filter(a => a.cantidad > 0);
 
   return (
-    <div className="bg-linear-to-r from-[#3982ac] to-[#125f69] text-white p-4 sm:p-6 shadow-lg">
+    <div className="bg-linear-to-r from-[#3982ac] to-[#125f69] text-white px-4 py-2 sm:p-6 shadow-lg">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Comercial TB</h1>
+        <h1 className="text-base sm:text-2xl md:text-3xl font-bold">Comercial TB</h1>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Printer */}
           {printer && (
             <button
               onClick={printer.connected ? undefined : printer.connect}
               title={printer.connected ? 'Impresora conectada' : 'Conectar impresora'}
-              className={`p-2 rounded-lg transition ${
+              className={`p-1.5 sm:p-2 rounded-lg transition ${
                 printer.connected
                   ? 'bg-green-400/30 text-green-300 cursor-default'
                   : 'bg-white/20 text-white/70 hover:bg-white/30 hover:text-white'
               }`}
             >
-              <Printer size={20} />
+              <Printer size={18} />
             </button>
           )}
 
@@ -52,9 +52,9 @@ export default function Header({ currentUser, onLogout, printer, showNotificatio
           <div className="relative" ref={bellRef}>
             <button
               onClick={() => { setBellOpen(o => !o); setUserOpen(false); }}
-              className="relative bg-white/20 p-2 rounded-lg hover:bg-white/30 transition"
+              className="relative bg-white/20 p-1.5 sm:p-2 rounded-lg hover:bg-white/30 transition"
             >
-              <Bell size={20} />
+              <Bell size={18} />
               {alerts.length > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                   {alerts.length}
@@ -111,9 +111,9 @@ export default function Header({ currentUser, onLogout, printer, showNotificatio
           <div className="relative" ref={userRef}>
             <button
               onClick={() => { setUserOpen(o => !o); setBellOpen(false); }}
-              className="bg-white/20 p-2 rounded-lg hover:bg-white/30 transition"
+              className="bg-white/20 p-1.5 sm:p-2 rounded-lg hover:bg-white/30 transition"
             >
-              <User size={20} />
+              <User size={18} />
             </button>
 
             {userOpen && (

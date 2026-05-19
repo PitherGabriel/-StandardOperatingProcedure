@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ShoppingCart, Trash2, Search, Plus, ChevronLeft, LayoutGrid } from 'lucide-react';
+import { ShoppingCart, Trash2, Search, Plus, ChevronLeft, LayoutGrid, X } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
 import { processSale } from '../../services/salesService';
 import { generateSaleId } from '../../services/printerService';
@@ -16,9 +16,9 @@ const BUSINESS = {
 };
 
 const CAT_COLORS = [
-  '#3B82F6','#10B981','#8B5CF6','#F97316','#EC4899','#14B8A6',
-  '#6366F1','#EF4444','#EAB308','#06B6D4','#F43F5E','#059669',
-  '#7C3AED','#D97706','#0EA5E9','#DC2626','#84CC16','#F59E0B',
+  '#3B82F6', '#10B981', '#8B5CF6', '#F97316', '#EC4899', '#14B8A6',
+  '#6366F1', '#EF4444', '#EAB308', '#06B6D4', '#F43F5E', '#059669',
+  '#7C3AED', '#D97706', '#0EA5E9', '#DC2626', '#84CC16', '#F59E0B',
 ];
 
 
@@ -32,8 +32,13 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [referencia, setReferencia] = useState('');
 
+  const [searchOpen, setSearchOpen] = useState(false);
+
   const searchRef = useRef(null);
   const receivedRef = useRef(null);
+
+  const openSearch = () => { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 50); };
+  const closeSearch = () => { setSearchOpen(false); setSearchTerm(''); };
 
   // Barcode scanner buffer — collects rapid keypresses from scan gun
   const barcodeBuffer = useRef('');
@@ -171,7 +176,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
       const result = await processSale(cartData, currentUser?.nombre, metodoPago, referencia);
       if (result.success) {
         setInventory(inventory.map(item => {
-          const cartItem = cart.find(c => c.id === item.id);
+          const cartItem = cart.find(c => c.codigo === item.codigo);
           return cartItem ? { ...item, cantidad: item.cantidad - cartItem.cantidadVendida } : item;
         }));
         setCompletedSale(saleSnapshot);
@@ -201,29 +206,26 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     return (
       <div
         onClick={() => !isOutOfStock && handleAddToCart(product)}
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-all duration-150 ${
-          isOutOfStock
+        className={`flex items-center gap-2 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2 border transition-all duration-150 ${isOutOfStock
             ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-60'
             : 'bg-white border-gray-200 shadow-sm cursor-pointer hover:border-[#008cc8] hover:shadow-md'
-        }`}
+          }`}
       >
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="font-semibold text-sm text-gray-800 truncate">{product.nombre}</span>
-          <span className="text-xs text-gray-500">{product.codigo}</span>
-          <span className={`text-xs font-medium ${
-            isOutOfStock ? 'text-red-400' : isLowStock ? 'text-orange-500' : 'text-gray-500'
-          }`}>
+          <span className="font-semibold text-xs lg:text-sm text-gray-800 truncate">{product.nombre}</span>
+          <span className="text-xs text-gray-400">{product.codigo}</span>
+          <span className={`text-xs font-medium ${isOutOfStock ? 'text-red-400' : isLowStock ? 'text-orange-500' : 'text-gray-400'
+            }`}>
             {isOutOfStock
               ? 'Agotado'
               : `${product.cantidad} ${product.unidad}${isLowStock ? ' · Stock bajo' : ''}`}
           </span>
         </div>
-        <span className="text-sm font-bold text-[#0075a7] shrink-0">${product.precio}</span>
-        <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold shrink-0 ${
-          isOutOfStock ? 'bg-gray-200 text-gray-400' : 'bg-[#0075a7] text-white'
-        }`}>
-          <Plus size={14} />
-          <span>Añadir</span>
+        <span className="text-xs lg:text-sm font-bold text-[#0075a7] shrink-0">${product.precio}</span>
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md text-xs font-semibold shrink-0 ${isOutOfStock ? 'bg-gray-200 text-gray-400' : 'bg-[#0075a7] text-white'
+          }`}>
+          <Plus size={12} />
+          <span className="hidden lg:inline">Añadir</span>
         </div>
       </div>
     );
@@ -231,22 +233,21 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+      <div className="flex flex-col lg:grid lg:grid-cols-2 gap-4 h-full">
         {/* Product panel */}
-        <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[45vh] lg:h-full">
+        <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden flex-1 min-h-0 lg:h-full">
 
           {/* Header */}
-          <div className="p-4 shrink-0 space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="px-3 py-2 lg:p-4 shrink-0">
+
+            {/* Title row — hidden on mobile when search is open */}
+            <div className={`flex items-center gap-2 lg:mb-2 ${(searchOpen || isSearching) ? 'hidden lg:flex' : 'flex'}`}>
               {!isGridMode && selectedCategory !== null && (
-                <button
-                  onClick={handleBack}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition"
-                >
-                  <ChevronLeft size={20} />
+                <button onClick={handleBack} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+                  <ChevronLeft size={18} />
                 </button>
               )}
-              <h2 className="text-xl font-bold text-gray-800 flex-1 truncate">
+              <h2 className="text-base lg:text-xl font-bold text-gray-800 flex-1 truncate">
                 {isGridMode
                   ? 'Productos'
                   : isSearching
@@ -256,38 +257,45 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                       : selectedCategory ?? 'Productos'}
               </h2>
               {!isGridMode && hasCategories && !isSearching && (
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-1 text-xs text-[#008cc8] hover:underline"
-                >
-                  <LayoutGrid size={14} /> Categorías
+                <button onClick={handleBack} className="flex items-center gap-1 text-xs text-[#008cc8] hover:underline shrink-0">
+                  <LayoutGrid size={13} />
+                  <span className="hidden lg:inline">Categorías</span>
                 </button>
               )}
+              <button onClick={openSearch} className="lg:hidden p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition">
+                <Search size={18} />
+              </button>
             </div>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Busca por nombre o código... (tecla /)"
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); if (e.target.value) setSelectedCategory(null); }}
-                onKeyDown={(e) => { if (e.key === 'Escape') { setSearchTerm(''); e.target.blur(); } }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8]"
-              />
+            {/* Search row — always visible on desktop, toggle on mobile */}
+            <div className={`flex items-center gap-2 ${(searchOpen || isSearching) ? 'flex' : 'hidden lg:flex'}`}>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  placeholder="Buscar por nombre o código..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); if (e.target.value) setSelectedCategory(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') { closeSearch(); e.target.blur(); } }}
+                  className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8] text-sm"
+                />
+              </div>
+              <button onClick={closeSearch} className="lg:hidden shrink-0 p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition">
+                <X size={18} />
+              </button>
             </div>
 
           </div>
 
           {/* Body */}
-          <div className="overflow-y-auto p-4 flex-1 min-h-0">
+          <div className="overflow-y-auto p-2 lg:p-4 flex-1 min-h-0">
             {inventoryLoading ? (
               <div className="flex flex-col gap-2">
                 {Array.from({ length: 6 }).map((_, i) => <ProductRowSkeleton key={i} />)}
               </div>
             ) : isGridMode ? (
-              <div className="grid grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5">
                 {categories.map(cat => (
                   <button
                     key={cat.name}
@@ -296,6 +304,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                     className="aspect-square rounded-xl flex flex-col items-center justify-center p-2 text-white hover:opacity-90 active:scale-95 transition-all shadow-sm"
                   >
                     <span className="font-bold text-sm text-center leading-tight line-clamp-2">{cat.name}</span>
+                    <span className="text-white/70 text-xs mt-0.5">{cat.count}</span>
                   </button>
                 ))}
                 {uncategorizedCount > 0 && (
@@ -322,9 +331,9 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
         </div>
 
         {/* Cart panel */}
-        <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden h-[55vh] lg:h-full">
-          <div className="py-3 px-3 shrink-0">
-            <div className="hidden sm:grid grid-cols-12 gap-2 bg-white px-3 py-1 rounded-lg">
+        <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden flex-1 min-h-0 lg:h-full">
+          <div className="py-1.5 px-1 shrink-0">
+            <div className="grid grid-cols-12 gap-2 bg-white px-3 py-1 rounded-lg">
               <div className="col-span-4 text-xs font-medium text-gray-500 uppercase">Nombre</div>
               <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</div>
               <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Precio</div>
@@ -336,66 +345,19 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
             {cart.length === 0 ? (
               <div className="flex items-center justify-center h-full text-gray-500">
                 <div className="text-center">
-                  <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
+                  <ShoppingCart size={35} className="mx-auto mb-2 opacity-50" />
                   <p>El carrito está vacío</p>
-                  <p className="text-xs text-gray-400 mt-1">Usa / para buscar o escanea un código de barras</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {cart.map(item => {
                   const hasTwoPrices = item.precio_2 != null && item.precio_2 > 0;
                   return (
-                    <div key={item.id} className="bg-gray-100 p-3 rounded-lg">
-                      {/* Mobile */}
-                      <div className="sm:hidden space-y-2">
-                        <div className="flex justify-between items-start">
-                          <h3 className="font-semibold text-sm text-gray-800">{item.nombre}</h3>
-                          <button onClick={() => handleRemoveFromCart(item.id)} className="p-1 text-[#bb1c49] hover:bg-red-50 rounded">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">Cantidad</span>
-                          <input
-                            type="number"
-                            value={item.cantidadVendida || ''}
-                            placeholder="0"
-                            step={item.unidad === 'unidad' ? '1' : '0.01'}
-                            min="0"
-                            onChange={(e) => setCartQuantity(item.id, e.target.value)}
-                            onWheel={(e) => e.target.blur()}
-                            className="w-24 text-center text-sm font-semibold bg-gray-50 border border-gray-300 rounded px-2 py-1"
-                          />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">Precio</span>
-                          {hasTwoPrices ? (
-                            <select
-                              value={item.priceType || 'precio'}
-                              onChange={(e) => changePriceType(item.id, e.target.value)}
-                              className="bg-white border border-gray-300 rounded px-2 py-1 text-xs"
-                            >
-                              <option value="precio">${item.precio?.toFixed(3)}</option>
-                              {item.precio_2 > 0 && <option value="precio_2">${item.precio_2?.toFixed(3)}</option>}
-                              {item.precio_3 > 0 && <option value="precio_3">${item.precio_3?.toFixed(3)}</option>}
-                            </select>
-                          ) : (
-                            <span className="text-sm font-semibold">${item.precio?.toFixed(3)}</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center border-t pt-2">
-                          <span className="text-xs text-gray-500">Subtotal</span>
-                          <span className="text-sm font-bold text-gray-800">
-                            ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Desktop */}
-                      <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
+                    <div key={item.id} className="bg-gray-100 p-2 rounded-lg">
+                      <div className="grid grid-cols-12 gap-1 items-center">
                         <div className="col-span-4 min-w-0">
-                          <h3 className="font-semibold text-sm text-gray-800 truncate">{item.nombre}</h3>
+                          <h3 className="font-semibold text-xs text-gray-800 truncate">{item.nombre}</h3>
                         </div>
                         <div className="col-span-3 flex justify-center">
                           <QuantityInput
@@ -407,12 +369,12 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                         <div className="col-span-3 flex justify-center">
                           <PriceSelector item={item} hasTwoPrices={hasTwoPrices} onChange={changePriceType} />
                         </div>
-                        <div className="col-span-2 flex justify-end items-center gap-2">
-                          <p className="text-sm font-bold text-gray-800">
+                        <div className="col-span-2 flex justify-end items-center gap-1">
+                          <p className="text-xs font-bold text-gray-800">
                             ${((item.precioActual || item.precio) * item.cantidadVendida).toFixed(2)}
                           </p>
                           <button onClick={() => handleRemoveFromCart(item.id)} className="p-1 text-[#bb1c49] hover:bg-red-50 rounded">
-                            <Trash2 size={16} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -424,7 +386,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
           </div>
 
           {/* Total & payment */}
-          <div className="p-3 lg:p-4 space-y-2 shrink-0">
+          <div className="p-2 lg:p-4 space-y-1.5 lg:space-y-2 shrink-0">
             <div className="h-px bg-gray-200" />
 
             {/* Payment method selector */}
@@ -439,11 +401,10 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                     <button
                       key={m.id}
                       onClick={() => setMetodoPago(m.id)}
-                      className={`flex-1 py-1.5 transition ${
-                        metodoPago === m.id
+                      className={`flex-1 py-1.5 transition ${metodoPago === m.id
                           ? 'bg-[#008cc8] text-white'
                           : 'bg-white text-gray-600 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {m.label}
                     </button>
@@ -462,14 +423,14 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
             )}
 
             <div className="flex justify-between items-center">
-              <span className="text-lg lg:text-2xl font-semibold">Total</span>
-              <span className="text-lg lg:text-2xl font-semibold text-[#2b2929]">$ {total.toFixed(2)}</span>
+              <span className="text-base lg:text-2xl font-semibold">Total</span>
+              <span className="text-base lg:text-2xl font-semibold text-[#2b2929]">$ {total.toFixed(2)}</span>
             </div>
 
-            {/* Recibe + Vuelto — side by side, same design */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-base lg:text-lg font-semibold text-gray-700 shrink-0">Recibe</span>
+            {/* Recibe + Vuelto */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-gray-600 shrink-0">Recibe</span>
                 <input
                   ref={receivedRef}
                   type="number"
@@ -482,15 +443,15 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                     }
                   }}
                   placeholder="0.00"
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-right font-semibold"
+                  className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-right font-semibold"
                   disabled={cart.length === 0}
                 />
               </div>
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-base lg:text-lg font-semibold text-gray-700 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-semibold shrink-0 ${lacking ? 'text-red-500' : 'text-gray-600'}`}>
                   {lacking ? 'Falta' : 'Vuelto'}
                 </span>
-                <div className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg text-base text-right font-semibold bg-gray-50">
+                <div className={`flex-1 min-w-0 px-2 py-1 border rounded-lg text-sm text-right font-semibold ${lacking ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-300 bg-gray-50 text-gray-800'}`}>
                   ${lacking ? (total - receivedAmt).toFixed(2) : change.toFixed(2)}
                 </div>
               </div>
@@ -514,11 +475,10 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
               <button
                 onClick={handleProcessSale}
                 disabled={cart.length === 0 || processingSale}
-                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
-                  cart.length === 0 || processingSale
+                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${cart.length === 0 || processingSale
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-[#1d8a02] text-white hover:bg-[#006b00]'
-                }`}
+                  }`}
               >
                 Pagar
               </button>
@@ -542,7 +502,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
           printing={printer.printing ?? false}
           error={printer.error ?? null}
           isSupported={printer.isSupported ?? false}
-          onPrint={() => printer.printReceipt?.(completedSale, BUSINESS).catch(() => {})}
+          onPrint={() => printer.printReceipt?.(completedSale, BUSINESS).catch(() => { })}
           onClose={dismissSaleModal}
           showNotification={showNotification}
         />
