@@ -30,7 +30,7 @@ class SRIClient:
             )
             
             ambiente = "PRUEBAS" if SRIConfig.AMBIENTE_ACTUAL == 1 else "PRODUCCIÓN"
-            print(f"✅ Cliente SRI iniciado - Ambiente: {ambiente}")
+            print(f"Cliente SRI iniciado - Ambiente: {ambiente}")
             
         except Exception as e:
             raise Exception(f"❌ Error al conectar con el SRI: {str(e)}")
@@ -93,84 +93,70 @@ class SRIClient:
                 'mensaje': f'Error al enviar comprobante: {str(e)}'
             }
     
-    def consultar_autorizacion(self, clave_acceso, intentos_maximos=10, tiempo_espera=3):
+    def consultar_autorizacion(self, clave_acceso, intentos_maximos=20, tiempo_espera=5):
         """
-        Consulta el estado de autorización de un comprobante
-        
-        Args:
-            clave_acceso: Clave de acceso del comprobante (49 dígitos)
-            intentos_maximos: Número máximo de intentos
-            tiempo_espera: Segundos entre intentos
-        
-        Returns:
-            dict con resultado de la autorización
+        Consulta el estado de autorización de un comprobante.
+        El ambiente de pruebas del SRI puede tardar hasta ~60 s.
         """
-        print(f"🔍 Consultando autorización...")
-        
+        print(f"Consultando autorización...")
+
         for intento in range(intentos_maximos):
             try:
-                # Esperar antes de consultar (excepto en el primer intento)
                 if intento > 0:
                     print(f"⏳ Esperando {tiempo_espera} segundos... (Intento {intento + 1}/{intentos_maximos})")
                     time.sleep(tiempo_espera)
-                
-                # Consultar autorización
+
                 response = self.client_autorizacion.service.autorizacionComprobante(clave_acceso)
-                
-                # Verificar si hay autorizaciones
+
                 if not hasattr(response, 'autorizaciones') or not response.autorizaciones:
                     continue
-                
-                # Obtener primera autorización
-                autorizacion = response.autorizaciones.autorizacion[0]
-                estado = autorizacion.estado if hasattr(autorizacion, 'estado') else 'ERROR'
-                
-                resultado = {
-                    'success': estado == 'AUTORIZADO',
-                    'estado': estado,
-                    'clave_acceso': clave_acceso
-                }
-                
-                # Si está autorizado
+
+                autorizaciones = response.autorizaciones.autorizacion
+                if not autorizaciones:
+                    continue
+
+                autorizacion = autorizaciones[0]
+                if autorizacion is None:
+                    continue
+
+                estado = autorizacion.estado if hasattr(autorizacion, 'estado') else None
+                if not estado:
+                    continue
+
                 if estado == 'AUTORIZADO':
-                    resultado['numero_autorizacion'] = autorizacion.numeroAutorizacion
-                    resultado['fecha_autorizacion'] = str(autorizacion.fechaAutorizacion)
-                    resultado['ambiente'] = autorizacion.ambiente
-                    resultado['comprobante_xml'] = autorizacion.comprobante
-                    
-                    # Extraer mensajes/advertencias
-                    if hasattr(autorizacion, 'mensajes'):
-                        advertencias = []
-                        for mensaje in autorizacion.mensajes.mensaje:
-                            advertencias.append({
-                                'identificador': mensaje.identificador if hasattr(mensaje, 'identificador') else '',
-                                'mensaje': mensaje.mensaje if hasattr(mensaje, 'mensaje') else '',
-                                'tipo': mensaje.tipo if hasattr(mensaje, 'tipo') else ''
-                            })
-                        resultado['advertencias'] = advertencias
-                    
-                    print(f"✅ Comprobante AUTORIZADO")
+                    resultado = {
+                        'success': True,
+                        'estado': estado,
+                        'clave_acceso': clave_acceso,
+                        'numero_autorizacion': autorizacion.numeroAutorizacion,
+                        'fecha_autorizacion': str(autorizacion.fechaAutorizacion),
+                        'ambiente': autorizacion.ambiente,
+                        'comprobante_xml': autorizacion.comprobante,
+                        'advertencias': self._extraer_mensajes(autorizacion),
+                    }
+                    print(f"   Comprobante AUTORIZADO")
                     print(f"   Número autorización: {resultado['numero_autorizacion']}")
                     print(f"   Fecha: {resultado['fecha_autorizacion']}")
                     return resultado
-                
-                # Si fue rechazado
-                elif estado in ['NO AUTORIZADO', 'RECHAZADO']:
-                    errores = []
-                    if hasattr(autorizacion, 'mensajes'):
-                        for mensaje in autorizacion.mensajes.mensaje:
-                            errores.append({
-                                'identificador': mensaje.identificador if hasattr(mensaje, 'identificador') else '',
-                                'mensaje': mensaje.mensaje if hasattr(mensaje, 'mensaje') else '',
-                                'tipo': mensaje.tipo if hasattr(mensaje, 'tipo') else ''
-                            })
-                    resultado['errores'] = errores
-                    resultado['mensaje'] = errores[0]['mensaje'] if errores else 'Comprobante no autorizado'
-                    
-                    print(f"❌ Comprobante NO AUTORIZADO: {resultado['mensaje']}")
-                    return resultado
-                
+
+                if estado in ('NO AUTORIZADO', 'RECHAZADO'):
+                    errores = self._extraer_mensajes(autorizacion)
+                    msg = errores[0]['mensaje'] if errores else 'Comprobante no autorizado'
+                    print(f"❌ Comprobante NO AUTORIZADO: {msg}")
+                    return {
+                        'success': False,
+                        'estado': estado,
+                        'clave_acceso': clave_acceso,
+                        'errores': errores,
+                        'mensaje': msg,
+                    }
+
+                # EN PROCESO u otro estado transitorio → seguir esperando
+                print(f"   Estado: {estado} — esperando...")
+
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 if intento == intentos_maximos - 1:
                     return {
                         'success': False,
@@ -178,13 +164,35 @@ class SRIClient:
                         'mensaje': f'Error consultando autorización: {str(e)}'
                     }
         
-        # Si llegamos aquí, se agotaron los intentos
         return {
             'success': False,
             'estado': 'TIMEOUT',
             'mensaje': 'Se agotó el tiempo de espera para la autorización'
         }
-    
+
+    def _extraer_mensajes(self, autorizacion) -> list:
+        """Extrae mensajes/errores de una autorización, ignorando entradas None."""
+        result = []
+        try:
+            mensajes = getattr(autorizacion, 'mensajes', None)
+            if not mensajes:
+                return result
+            lista = getattr(mensajes, 'mensaje', None)
+            if not lista:
+                return result
+            for m in lista:
+                if m is None:
+                    continue
+                result.append({
+                    'identificador': getattr(m, 'identificador', '') or '',
+                    'mensaje':       getattr(m, 'mensaje',       '') or '',
+                    'tipo':          getattr(m, 'tipo',          '') or '',
+                    'informacion_adicional': getattr(m, 'informacionAdicional', '') or '',
+                })
+        except Exception:
+            pass
+        return result
+
     def guardar_xml(self, xml_contenido, clave_acceso, directorio):
         """
         Guarda un XML en el directorio especificado

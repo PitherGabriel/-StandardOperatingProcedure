@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<autorizacion>
+    <estado>AUTORIZADO</estado>
+    <numeroAutorizacion>2105202601110276288500110010010000000102881489315</numeroAutorizacion>
+    <fechaAutorizacion>2026-05-21 17:03:15-05:00</fechaAutorizacion>
+    <comprobante><![CDATA[<?xml version='1.0' encoding='UTF-8'?>
+<factura id="comprobante" version="1.1.0">
+  <infoTributaria>
+    <ambiente>1</ambiente>
+    <tipoEmision>1</tipoEmision>
+    <razonSocial>TENE TENE LUIS ANTONIO</razonSocial>
+    <nombreComercial>COMERCIAL TB</nombreComercial>
+    <ruc>1102762885001</ruc>
+    <claveAcceso>2105202601110276288500110010010000000102881489315</claveAcceso>
+    <codDoc>01</codDoc>
+    <estab>001</estab>
+    <ptoEmi>001</ptoEmi>
+    <secuencial>000000010</secuencial>
+    <dirMatriz>LOJA/LOJA/SAN LUCAS/AKAKANA JUNTO AL CENTRO DE SALUD PICHIG</dirMatriz>
+  </infoTributaria>
+  <infoFactura>
+    <fechaEmision>21/05/2026</fechaEmision>
+    <dirEstablecimiento>LOJA / LOJA / SAN LUCAS / AKAKANA- JUNTO AL CENTRO DE SALUD PICHIG</dirEstablecimiento>
+    <obligadoContabilidad>NO</obligadoContabilidad>
+    <tipoIdentificacionComprador>05</tipoIdentificacionComprador>
+    <razonSocialComprador>Cliente Prueba SRI</razonSocialComprador>
+    <identificacionComprador>9999999999</identificacionComprador>
+    <direccionComprador>Loja, Ecuador</direccionComprador>
+    <totalSinImpuestos>20.00</totalSinImpuestos>
+    <totalDescuento>0.00</totalDescuento>
+    <totalConImpuestos>
+      <totalImpuesto>
+        <codigo>2</codigo>
+        <codigoPorcentaje>4</codigoPorcentaje>
+        <baseImponible>20.00</baseImponible>
+        <valor>3.00</valor>
+      </totalImpuesto>
+    </totalConImpuestos>
+    <propina>0.00</propina>
+    <importeTotal>23.00</importeTotal>
+    <moneda>DOLAR</moneda>
+    <pagos>
+      <pago>
+        <formaPago>01</formaPago>
+        <total>23.00</total>
+      </pago>
+    </pagos>
+  </infoFactura>
+  <detalles>
+    <detalle>
+      <codigoPrincipal>PROD001</codigoPrincipal>
+      <descripcion>Producto de Prueba A</descripcion>
+      <cantidad>2.000000</cantidad>
+      <precioUnitario>5.000000</precioUnitario>
+      <descuento>0.00</descuento>
+      <precioTotalSinImpuesto>10.00</precioTotalSinImpuesto>
+      <impuestos>
+        <impuesto>
+          <codigo>2</codigo>
+          <codigoPorcentaje>4</codigoPorcentaje>
+          <tarifa>15</tarifa>
+          <baseImponible>10.00</baseImponible>
+          <valor>1.50</valor>
+        </impuesto>
+      </impuestos>
+    </detalle>
+    <detalle>
+      <codigoPrincipal>PROD002</codigoPrincipal>
+      <descripcion>Producto de Prueba B</descripcion>
+      <cantidad>1.000000</cantidad>
+      <precioUnitario>10.000000</precioUnitario>
+      <descuento>0.00</descuento>
+      <precioTotalSinImpuesto>10.00</precioTotalSinImpuesto>
+      <impuestos>
+        <impuesto>
+          <codigo>2</codigo>
+          <codigoPorcentaje>4</codigoPorcentaje>
+          <tarifa>15</tarifa>
+          <baseImponible>10.00</baseImponible>
+          <valor>1.50</valor>
+        </impuesto>
+      </impuestos>
+    </detalle>
+  </detalles>
+  <infoAdicional>
+    <campoAdicional nombre="Vendedor">Script de Prueba</campoAdicional>
+    <campoAdicional nombre="Email">hugotene1987@gmail.com</campoAdicional>
+  </infoAdicional>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:etsi="http://uri.etsi.org/01903/v1.3.2#" Id="Signature784228"><ds:SignedInfo Id="Signature-SignedInfo704480"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><ds:Reference Id="SignedPropertiesID768699" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature784228-SignedProperties955515"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>nX7aEFpPcInpdoWhsvlng1BCjYA=</ds:DigestValue></ds:Reference><ds:Reference URI="#Certificate748915"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>3zDj6TemuHOOseHW+NLKpRZWtAQ=</ds:DigestValue></ds:Reference><ds:Reference Id="Reference-ID-206776" URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>aajPcuuaEvf5NFaYnyVo+8sYINI=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue Id="SignatureValue468180">ilT/iH/wd/izX7BOcHsp13HNIhvl2f0XUodYxJx8yb2qLS0X/oM3zRiELuYiGaAvE8xko5TXVqkLpOK8Ep3Tqh5Abb2qJU4NFPGLFwD6S7mBxcmyMO153iVXQwsjvtkmWO0mj4YnVqcUkcvxBICTMfBLbrqfWEdoGtqY8E39VI73ePFmkG/dhEeHFkpLM8NSmfvQfChMzqOOcDwVPUHKuATQWzeU1qhp05zNbFVBK/LF0yUDh9jJn2wYZh1KhXi0U/F0+PP7m/wjvB963zQG7NZ74Rs18Y/NUndIQykJKJNRl4LTDGrXLRDCpBdDMdBPAxHpL23AxZ/JmkuMFCCwFw==</ds:SignatureValue><ds:KeyInfo Id="Certificate748915"><ds:X509Data><ds:X509Certificate>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</ds:X509Certificate></ds:X509Data><ds:KeyValue><ds:RSAKeyValue><ds:Modulus>wBbPC519UiNh+7xP7N4mIhgj89lr3MbpYydE8UFDcuc8o7Hy884xRb/JIuxj49MML+Kqqcu3SUmDeX04DK0kp3DeMn6YBWIVRxSQpKYNISG28LSSgDY99qDSXpsTQIpwAPt8Oi3pm/5KShoY6mpgnB6Xgf5g4DRfWKhfaIFH8yhamAVNYU7X1xoB+GnXUm3Ntb81CXYHU7/BNRk8OY5fejzBTwgxrViKtrYLzk2ksVga43vHxZXxbffe7x9tMZ6DcrlPBuP1LleV2b3scVcgjsnwn5/tqiWo5AzTsIZZBIn6dCJKSoo2jfS3OAvplm4cL1Ez6R7IGeqD9XuCYw1vxQ==</ds:Modulus><ds:Exponent>AQAB</ds:Exponent></ds:RSAKeyValue></ds:KeyValue></ds:KeyInfo><ds:Object Id="Signature784228-Object389856"><etsi:QualifyingProperties Target="#Signature784228"><etsi:SignedProperties Id="Signature784228-SignedProperties955515"><etsi:SignedSignatureProperties><etsi:SigningTime>2026-05-22T00:03:14+02:00</etsi:SigningTime><etsi:SigningCertificate><etsi:Cert><etsi:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>wv85RkgsQbTE9SEBvSZuvf0oDyo=</ds:DigestValue></etsi:CertDigest><etsi:IssuerSerial><ds:X509IssuerName>C=EC,O=Lazzate Cia. Ltda.,CN=Lazzate Emisor CA2</ds:X509IssuerName><ds:X509SerialNumber>3255592546</ds:X509SerialNumber></etsi:IssuerSerial></etsi:Cert></etsi:SigningCertificate></etsi:SignedSignatureProperties><etsi:SignedDataObjectProperties><etsi:DataObjectFormat ObjectReference="#Reference-ID-206776"><etsi:Description>contenido comprobante</etsi:Description><etsi:MimeType>text/xml</etsi:MimeType></etsi:DataObjectFormat></etsi:SignedDataObjectProperties></etsi:SignedProperties></etsi:QualifyingProperties></ds:Object></ds:Signature></factura>
+]]></comprobante>
+    <mensajes></mensajes>
+</autorizacion>

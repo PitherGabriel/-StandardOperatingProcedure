@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, session, send_file
 from flask_cors import CORS
-from pos_backend import InventoryManager, InferenceModel
+from modules.inventory import InventoryManager
+from modules.inference import InferenceModel
 import time
 import os
 
@@ -10,7 +11,7 @@ def _get_sri_manager():
     global _sri_manager
     if _sri_manager is None:
         try:
-            from sri_manager import SRIManager
+            from modules.sri_manager import SRIManager
             _sri_manager = SRIManager()
         except Exception as e:
             raise RuntimeError(f"SRI Manager no inicializado: {e}")
@@ -459,7 +460,7 @@ def create_app():
 
             # 4. Enviar email al cliente con el XML autorizado
             import os as _os
-            from sri_manager import SRIConfig
+            from config import SRIConfig
             xml_path = _os.path.join(
                 SRIConfig.DIR_XML_AUTORIZADOS,
                 f"{invoice_result.get('clave_acceso', '')}.xml"
