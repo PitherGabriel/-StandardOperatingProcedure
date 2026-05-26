@@ -313,10 +313,45 @@ export default function StockTable({ inventory, onInventoryChange, showNotificat
   return (
     <>
       <div className="bg-white rounded-2xl shadow overflow-hidden">
-        <div className="flex h-175">
+        {/* Mobile: horizontal category filter pills */}
+        <div className="md:hidden border-b border-gray-200">
+          <div className="flex gap-2 overflow-x-auto p-3">
+            <button
+              onClick={() => { setSelectedCat(''); setSelectedSub(''); }}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                !selectedCat ? 'bg-[#008cc8] text-white' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Todos
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => handleCatClick(cat)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                  selectedCat === cat ? 'bg-[#008cc8] text-white' : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+            {uncategorized.length > 0 && (
+              <button
+                onClick={() => { setSelectedCat('__none__'); setSelectedSub(''); }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                  selectedCat === '__none__' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                Sin categoría
+              </button>
+            )}
+          </div>
+        </div>
 
-          {/* LEFT SIDEBAR */}
-          <aside className="w-64 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto">
+        <div className="md:flex md:h-175">
+
+          {/* LEFT SIDEBAR — desktop only */}
+          <aside className="hidden md:block w-64 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-800">Categorías</h2>
             </div>
@@ -388,7 +423,44 @@ export default function StockTable({ inventory, onInventoryChange, showNotificat
 
           {/* RIGHT CONTENT */}
           <div className="flex-1 overflow-y-auto">
-            <table className="w-full">
+            {/* Mobile: card list */}
+            <div className="md:hidden space-y-2 p-3">
+              {filtered.length === 0 ? (
+                <p className="text-center text-gray-400 py-10">
+                  {selectedCat ? 'No hay productos en esta categoría' : 'No hay productos en el inventario'}
+                </p>
+              ) : (
+                filtered.map(item => (
+                  <div key={item.id ?? item.codigo} className="bg-gray-50 rounded-xl border border-gray-100 p-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-gray-800 truncate">{item.nombre}</p>
+                      <p className="text-xs text-gray-400 font-mono">{item.codigo}</p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className={`text-sm font-bold ${
+                          item.cantidad === 0 ? 'text-red-600' : item.cantidad <= item.minStock ? 'text-yellow-600' : 'text-green-600'
+                        }`}>{item.cantidad} {item.unidad}</span>
+                        <span className="text-gray-300">·</span>
+                        <span className="text-sm text-gray-700">${Number(item.precio).toFixed(2)}</span>
+                        <StockBadge cantidad={item.cantidad} minStock={item.minStock} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button onClick={() => setEditingProduct(item)}
+                        className="p-2 text-[#008cc8] hover:bg-blue-50 rounded-lg transition">
+                        <Pencil size={16} />
+                      </button>
+                      <button onClick={() => setAdjustingProduct(item)}
+                        className="p-2 text-[#1d8a02] hover:bg-green-50 rounded-lg transition">
+                        <PlusCircle size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop: table */}
+            <table className="hidden md:table w-full">
               <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Código</th>

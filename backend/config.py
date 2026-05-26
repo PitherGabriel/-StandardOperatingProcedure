@@ -2,13 +2,12 @@
 Configuración para Facturación Electrónica SRI
 """
 import os
-from datetime import datetime
 
 class SRIConfig:
     # Datos del emisor (TU EMPRESA)
     RUC_EMISOR = "1102762885001"  # CAMBIAR por tu RUC
-    RAZON_SOCIAL = "CENTRO COMERCIAL TB"  # CAMBIAR
-    NOMBRE_COMERCIAL = "Mi Tienda"  # CAMBIAR
+    RAZON_SOCIAL = "TENE TENE LUIS ANTONIO"  # CAMBIAR
+    NOMBRE_COMERCIAL = "COMERCIAL TB"  # CAMBIAR
     DIR_MATRIZ = "LOJA/LOJA/SAN LUCAS/AKAKANA JUNTO AL CENTRO DE SALUD PICHIG"  # CAMBIAR
     DIR_ESTABLECIMIENTO = "LOJA / LOJA / SAN LUCAS / AKAKANA- JUNTO AL CENTRO DE SALUD PICHIG"  # CAMBIAR
     
@@ -37,8 +36,8 @@ class SRIConfig:
         URL_AUTORIZACION = "https://cel.sri.gob.ec/comprobantes-electronicos-ws/AutorizacionComprobantesOffline?wsdl"
     
     # Certificado digital
-    CERTIFICADO_PATH = "certificado.p12"
-    CERTIFICADO_PASSWORD = "u_password_aqui"  # CAMBIAR
+    CERTIFICADO_PATH = os.environ.get('SRI_CERT_PATH', 'certificado.p12')
+    CERTIFICADO_PASSWORD = os.environ.get('SRI_CERT_PASSWORD', '')
     
     # Directorio para almacenar XMLs
     DIR_XML_GENERADOS = "xml_generados"

@@ -2,9 +2,11 @@
 Generador de XML para Facturas Electrónicas según esquema SRI
 """
 from lxml import etree
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import random
 from config import SRIConfig
+
+ECUADOR_TZ = timezone(timedelta(hours=-5))
 
 class XMLGenerator:
     
@@ -100,7 +102,7 @@ class XMLGenerator:
             str: XML generado como string
         """
         
-        fecha_emision = datetime.now()
+        fecha_emision = datetime.now(ECUADOR_TZ)
         clave_acceso = XMLGenerator.generar_clave_acceso(fecha_emision, secuencial)
         
         # Crear elemento raíz
