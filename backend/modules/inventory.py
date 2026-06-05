@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import uuid
 import time
 from decimal import Decimal, ROUND_HALF_UP
+from babel.dates import format_date
 
 BUSINESS_TZ = ZoneInfo("America/Guayaquil")
 
@@ -747,28 +748,34 @@ class InventoryManager:
                 print("Filtrando ventas de hoy")
                 start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-                period_label = f"Hoy - {now.strftime('%d/%m/%Y')}"
+                period_label = f"{format_date(now, format='full', locale='es_ES')}"
 
             elif period == 'week':
                 print("Filtrando ventas de la semana")
                 start_date = now - timedelta(days=now.weekday())
                 start_date = start_date.replace(hour=0, minute=0, second=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-                period_label = f"Esta Semana ({start_date.strftime('%d/%m')} - {end_date.strftime('%d/%m/%Y')})"
+                period_label = (
+                    f"{format_date(start_date, 'd MMMM', locale='es_ES')} - "
+                    f"{format_date(end_date, 'd MMMM y', locale='es_ES')}")
 
             elif period == 'month':
                 print("Filtrando ventas del mes")
                 start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-                period_label = f"Este Mes - {now.strftime('%B %Y')}"
+                period_label = f"{format_date(start_date, 'MMMM y', locale='es_ES')}"
 
             elif period == 'custom' and custom_start and custom_end:
                 print("Filtrando ventas en rango personalizado")
                 start_date = datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
                 end_date = datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=BUSINESS_TZ)
+                period_label = (
+                    f"{format_date(start_date, 'd MMMM', locale='es_ES')} - "
+                    f"{format_date(end_date, 'd MMMM y', locale='es_ES')}")
             else:
                 return {'success': False, 'error': 'Período no válido'}
 
+            print(f"Periodo: {period_label}")
             date_col = self.sheet_sales.col_values(2)[1:]
             headers = self.sheet_sales.row_values(1)
 
@@ -782,6 +789,7 @@ class InventoryManager:
                     continue
 
             if not matching_rows:
+                print("Periodo de fecha no encontrado en lista de ventas")
                 return {
                     'success': True,
                     'data': {

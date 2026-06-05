@@ -62,4 +62,5 @@ dependencies = [
     "zeep>=4.2.1",
     "signxml>=3.2.2",
     "dotenv>=0.9.9",
+    "babel>=2.18.0",
 ]
