@@ -69,6 +69,7 @@ const POSSystem = () => {
           <PosBox
             inventory={auth.inventory}
             setInventory={auth.setInventory}
+            refreshInventory={auth.refreshInventory}
             currentUser={auth.currentUser}
             showNotification={showNotification}
             printer={printer}
@@ -81,6 +82,7 @@ const POSSystem = () => {
             inventory={auth.inventory}
             onInventoryChange={auth.refreshInventory}
             showNotification={showNotification}
+            printer={printer}
           />
         )}
         {activeTab === 'productos' && activeSubTab === 'anadir-producto' && (

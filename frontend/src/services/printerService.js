@@ -126,6 +126,30 @@ function buildReceipt(sale, biz) {
   return b.toUint8Array();
 }
 
+function buildLabel(product) {
+  const b = new ByteBuffer();
+
+  b.cmd(CMD.INIT, CMD.CHARSET_PC850, CMD.ALIGN_CENTER);
+
+  // Product name
+  b.cmd(CMD.BOLD_ON).text(`${product.nombre}`.slice(0, LINE_WIDTH));
+  b.cmd(CMD.BOLD_OFF);
+
+  // Price
+  const precio = product.precio ?? product.precio_1 ?? 0;
+  b.cmd(CMD.DOUBLE_H).text(`$${Number(precio).toFixed(2)}`);
+  b.cmd(CMD.NORMAL_SIZE);
+
+  // Code128 barcode of the product code (what the scanner reads)
+  b.cmd(CMD.BAR_HEIGHT, CMD.BAR_WIDTH, CMD.BAR_HRI_BELOW);
+  const codeBytes = Array.from(String(product.codigo)).map(c => c.charCodeAt(0));
+  b.cmd([0x1D, 0x6B, 0x49, codeBytes.length, ...codeBytes]);
+
+  b.cmd(CMD.LF, CMD.LF, CMD.CUT);
+
+  return b.toUint8Array();
+}
+
 export function generateSaleId() {
   const d = new Date();
   const date = d.toISOString().slice(0, 10).replace(/-/g, '');
@@ -161,9 +185,17 @@ export class PrinterService {
     this.#connected = false;
   }
 
+  async printLabel(product) {
+    if (!this.#connected) throw new Error('Impresora no conectada');
+    return this.#send(buildLabel(product));
+  }
+
   async printReceipt(sale, biz) {
     if (!this.#connected) throw new Error('Impresora no conectada');
-    const bytes = buildReceipt(sale, biz);
+    return this.#send(buildReceipt(sale, biz));
+  }
+
+  async #send(bytes) {
     let res;
     try {
       res = await fetch(`${BRIDGE}/print`, {

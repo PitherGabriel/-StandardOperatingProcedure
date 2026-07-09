@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AlertCircle, Check, X } from 'lucide-react';
+import { AlertCircle, Check, Info, X } from 'lucide-react';
 
 export default function NotificationToast({ notification, setNotification }) {
   useEffect(() => {
@@ -10,11 +10,15 @@ export default function NotificationToast({ notification, setNotification }) {
   return (
     <div className="fixed top-4 right-4 z-50 animate-slide-in">
       <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${
-        notification.type === 'success' ? 'bg-green-700 text-white' : 'bg-red-700 text-white'
+        notification.type === 'success' ? 'bg-green-700 text-white'
+          : notification.type === 'info' ? 'bg-[#0075a7] text-white'
+          : 'bg-red-700 text-white'
       }`}>
         {notification.type === 'success'
           ? <Check size={24} className="shrink-0" />
-          : <AlertCircle size={24} className="shrink-0" />
+          : notification.type === 'info'
+            ? <Info size={24} className="shrink-0" />
+            : <AlertCircle size={24} className="shrink-0" />
         }
         <p className="font-semibold">{notification.message}</p>
         <button

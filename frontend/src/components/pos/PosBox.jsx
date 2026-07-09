@@ -2,11 +2,13 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { ShoppingCart, Trash2, Search, Plus, ChevronLeft, LayoutGrid, X } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
 import { processSale } from '../../services/salesService';
+import { fetchInventory } from '../../services/inventoryService';
 import { generateSaleId } from '../../services/printerService';
 import PriceSelector from './PriceSelector';
 import QuantityInput from './QuantitySelector';
 import CameraModal from '../camera/CameraModal';
 import PostSaleModal from '../receipt/PostSaleModal';
+import InventoryForm from '../inventory/InventoryForm';
 import { ProductRowSkeleton } from '../ui/Skeleton';
 
 const BUSINESS = {
@@ -22,7 +24,7 @@ const CAT_COLORS = [
 ];
 
 
-export default function PosBox({ inventory, setInventory, currentUser, showNotification, printer = {}, inventoryLoading = false }) {
+export default function PosBox({ inventory, setInventory, refreshInventory, currentUser, showNotification, printer = {}, inventoryLoading = false }) {
   const { cart, addToCart, removeFromCart, setCartQuantity, changePriceType, clearCart, total } = useCart(inventory, showNotification);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -33,6 +35,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const [referencia, setReferencia] = useState('');
 
   const [searchOpen, setSearchOpen] = useState(false);
+  const [registerCode, setRegisterCode] = useState(null);
 
   const searchRef = useRef(null);
   const receivedRef = useRef(null);
@@ -40,9 +43,12 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const openSearch = () => { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 50); };
   const closeSearch = () => { setSearchOpen(false); setSearchTerm(''); };
 
-  // Barcode scanner buffer — collects rapid keypresses from scan gun
+  // Barcode scanner detection — a scan gun "types" the code as a fast burst then Enter.
+  // We track inter-key timing so it works regardless of focus and never hijacks human typing.
   const barcodeBuffer = useRef('');
-  const barcodeTimer = useRef(null);
+  const firstKeyTime = useRef(0);
+  const lastKeyTime = useRef(0);
+  const HUMAN_GAP_MS = 50; // gaps larger than this => a person, not a scanner
 
   // Build sorted category list with colors
   const categories = useMemo(() => {
@@ -78,31 +84,64 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     return inventory;
   }, [inventory, searchTerm, selectedCategory]);
 
+  // After registering a product from an unknown scan, refresh inventory and add it to the cart
+  const handleRegistered = async (codigo) => {
+    setRegisterCode(null);
+    try {
+      const fresh = await fetchInventory();
+      setInventory(fresh);
+      const product = fresh.find(p => p.codigo === codigo);
+      if (product && product.cantidad > 0) {
+        addToCart(product);
+        showNotification(`"${product.nombre}" añadido al carrito`, 'success');
+      }
+    } catch {
+      refreshInventory?.();
+    }
+  };
+
   // Global keyboard shortcuts + barcode scanner detection
   useEffect(() => {
+    const handleScannedCode = (code) => {
+      const product = inventory.find(p => p.codigo.toLowerCase() === code.toLowerCase());
+      if (product) {
+        addToCart(product);
+        setSearchTerm('');
+        showNotification(`"${product.nombre}" añadido al carrito`, 'success');
+      } else {
+        // Unknown barcode → offer to register it (code becomes the product's codigo)
+        setSearchTerm('');
+        setRegisterCode(code);
+        showNotification(`Código "${code}" no registrado — regístralo`, 'info');
+      }
+    };
+
     const handleKeyDown = (e) => {
+      // Suspend scanning while the register modal is open (user is filling the form)
+      if (registerCode !== null) return;
+
       const tag = document.activeElement?.tagName;
       const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
-      // Barcode scanner: accumulate printable chars arriving fast
+      // Barcode scanner: collect printable chars, resetting the buffer on any human-speed gap
       if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+        const now = Date.now();
+        if (now - lastKeyTime.current > HUMAN_GAP_MS) {
+          barcodeBuffer.current = '';
+          firstKeyTime.current = now;
+        }
         barcodeBuffer.current += e.key;
-        clearTimeout(barcodeTimer.current);
-        barcodeTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 120);
-      } else if (e.key === 'Enter' && barcodeBuffer.current.length >= 3) {
+        lastKeyTime.current = now;
+      } else if (e.key === 'Enter') {
         const code = barcodeBuffer.current.trim();
+        const burstMs = Date.now() - firstKeyTime.current;
+        const isScan = code.length >= 3 && burstMs < code.length * HUMAN_GAP_MS;
         barcodeBuffer.current = '';
-        clearTimeout(barcodeTimer.current);
-        // Only intercept if not focused on received-money or other functional inputs
-        if (document.activeElement !== receivedRef.current) {
-          const product = inventory.find(p => p.codigo.toLowerCase() === code.toLowerCase());
-          if (product) {
-            e.preventDefault();
-            addToCart(product);
-            setSearchTerm('');
-            showNotification(`"${product.nombre}" añadido al carrito`, 'success');
-            return;
-          }
+        // Only treat as a scan (never hijack the received-money / pay-on-Enter field)
+        if (isScan && document.activeElement !== receivedRef.current) {
+          e.preventDefault();
+          handleScannedCode(code);
+          return;
         }
       }
 
@@ -119,7 +158,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [searchTerm, selectedCategory, inventory, addToCart, showNotification]);
+  }, [searchTerm, selectedCategory, inventory, addToCart, showNotification, registerCode]);
 
   const handleRemoveFromCart = (id) => {
     removeFromCart(id);
@@ -494,6 +533,31 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
           </div>
         </div>
       </div>
+
+      {registerCode !== null && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8">
+            <div className="flex items-center justify-between p-5 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Registrar producto escaneado</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Código: <span className="font-mono">{registerCode}</span>
+                </p>
+              </div>
+              <button onClick={() => setRegisterCode(null)} className="p-2 hover:bg-gray-100 rounded-lg transition">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-2">
+              <InventoryForm
+                initialCodigo={registerCode}
+                onAdded={handleRegistered}
+                showNotification={showNotification}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {completedSale && (
         <PostSaleModal

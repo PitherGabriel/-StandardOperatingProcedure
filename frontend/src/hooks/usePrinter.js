@@ -47,6 +47,20 @@ export function usePrinter() {
     }
   };
 
+  const printLabel = async (product) => {
+    setPrinting(true);
+    setError(null);
+    try {
+      await service.current.printLabel(product);
+    } catch (e) {
+      setError(e.message);
+      if (!service.current.isConnected()) setConnected(false);
+      throw e;
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   return {
     connected,
     printing,
@@ -54,6 +68,7 @@ export function usePrinter() {
     connect,
     disconnect,
     printReceipt,
+    printLabel,
     isSupported: service.current.isSupported(),
   };
 }
