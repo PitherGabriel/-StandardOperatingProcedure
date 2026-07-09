@@ -14,7 +14,7 @@ export async function fetchInventory() {
     precio_3: parseFloat(item.Precio_3),
     costo: parseFloat(item.Costo || 0),
     minStock: item.MinStock,
-    codigo: item.Codigo,
+    codigo: String(item.Codigo ?? ''),
     categoria: item.Categoria || '',
     subcategoria: item.Subcategoria || '',
     descuento: parseFloat(item.Descuento || 0),

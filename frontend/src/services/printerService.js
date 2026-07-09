@@ -144,8 +144,12 @@ function buildLabel(product) {
   b.cmd(CMD.BAR_HEIGHT, CMD.BAR_WIDTH, CMD.BAR_HRI_BELOW);
   const codeBytes = Array.from(String(product.codigo)).map(c => c.charCodeAt(0));
   b.cmd([0x1D, 0x6B, 0x49, codeBytes.length, ...codeBytes]);
+  b.cmd(CMD.LF);
 
-  b.cmd(CMD.LF, CMD.LF, CMD.CUT);
+  // Feed past the print-head→cutter gap so the code text under the barcode
+  // isn't sheared off, then cut.
+  b.cmd(CMD.LF, CMD.LF, CMD.LF, CMD.LF, CMD.LF);
+  b.cmd(CMD.CUT);
 
   return b.toUint8Array();
 }
