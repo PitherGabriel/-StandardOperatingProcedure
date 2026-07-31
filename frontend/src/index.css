@@ -1,8 +1,41 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui;
+  --font-satoshi: 'Satoshi', ui-sans-serif, system-ui; /* login test — scoped via font-satoshi */
+
+  /* ── Brand primary (interactive blue) ─────────────────────────────
+     The main action color: buttons, active tabs, focus rings, links. */
+  --color-brand-400: #0796c2;
+  --color-brand-500: #008cc8; /* primary */
+  --color-brand-600: #0176a8;
+  --color-brand-700: #016996; /* hover */
+  --color-brand-800: #006b9e;
+
+  /* ── Header gradient (teal) ───────────────────────────────────────
+     Used as: bg-linear-to-r from-header-start to-header-end */
+  --color-header-start: #3982ac;
+  --color-header-end:   #125f69;
+
+  /* ── Accent (info / toast) ────────────────────────────────────────*/
+  --color-accent: #0075a7;
+
+  /* ── Semantic status ──────────────────────────────────────────────
+     Prefer these over ad-hoc green / red / yellow shades for POS states. */
+  --color-success: #1d8a02;
+  --color-danger:  #d33115;
+
+  /* ── Forest green (logo identity) ─────────────────────────────────
+     The green from the Comercial TB cart logo. Drives the login screen:
+     primary button (forest-500), hover (forest-600), and the brand
+     panel gradient (from-forest-600 to-forest-900). */
+  --color-forest-500: #1b843f; /* primary green */
+  --color-forest-600: #156a33; /* hover */
+  --color-forest-700: #0f5228;
+  --color-forest-800: #0b3d1f;
+  --color-forest-900: #082e18; /* deep panel */
 }
 
 @layer base {
@@ -31,4 +64,26 @@
 .animate-scan {
     animation: scan 2s ease-in-out infinite;
 }
+}
+
+/* ── Entrance animations (subtle) ───────────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out both;
+}
+
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.6s ease-out 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-fade-in-scale { animation: none; }
 }
