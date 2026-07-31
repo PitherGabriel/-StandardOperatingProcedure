@@ -34,7 +34,7 @@ export default function LoginScreen({ onLogin, showNotification }) {
     'focus:border-forest-500 focus:bg-white';
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2 font-satoshi">
+    <div className="min-h-screen grid md:grid-cols-2">
 
       {/* ── Form panel (full height) ───────────────────────────── */}
       <div className="relative flex flex-col items-center justify-start bg-white p-8 sm:p-12 md:h-screen md:overflow-y-auto">

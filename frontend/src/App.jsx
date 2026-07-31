@@ -3,8 +3,8 @@ import { useAuth } from './hooks/useAuth';
 import { useNotification } from './hooks/useNotification';
 import { useSales } from './hooks/useSales';
 import { usePrinter } from './hooks/usePrinter';
-import Header from './components/layout/Header';
-import TabNav from './components/layout/TabNav';
+import Sidebar from './components/layout/Sidebar';
+import Topbar from './components/layout/Topbar';
 import LoginScreen from './components/layout/LoginScreen';
 import NotificationToast from './components/ui/NotificationToast';
 import PosBox from './components/pos/PosBox';
@@ -22,6 +22,7 @@ const POSSystem = () => {
   const printer = usePrinter();
   const [activeTab, setActiveTab] = useState('pos');
   const [activeSubTab, setActiveSubTab] = useState('ver-inventario');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const alerts = auth.inventory
     .filter(item => item.cantidad <= item.minStock)
@@ -43,27 +44,33 @@ const POSSystem = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className="h-screen flex bg-gray-50 overflow-hidden">
       {notification && <NotificationToast notification={notification} setNotification={setNotification} />}
 
-      <Header
-        currentUser={auth.currentUser}
-        onLogout={auth.handleLogout}
-        printer={printer}
-        onPrinterConnect={printer.connect}
-        showNotification={showNotification}
-        alerts={alerts}
-      />
-
-      <TabNav
+      <Sidebar
         activeTab={activeTab}
         activeSubTab={activeSubTab}
         onTabChange={handleTabChange}
         onSubTabChange={setActiveSubTab}
+        currentUser={auth.currentUser}
+        onLogout={auth.handleLogout}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
       />
 
-<div className="p-4 flex-1 min-h-0 overflow-auto">
-        {activeTab === 'dashboard' && <DashboardPage />}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Topbar
+          activeTab={activeTab}
+          printer={printer}
+          showNotification={showNotification}
+          alerts={alerts}
+          onMenuClick={() => setMobileNavOpen(true)}
+        />
+
+        <main className="p-4 lg:p-6 flex-1 min-h-0 overflow-auto">
+          {activeTab === 'dashboard' && (
+            <DashboardPage currentUser={auth.currentUser} inventory={auth.inventory} />
+          )}
 
         {activeTab === 'pos' && (
           <PosBox
@@ -120,6 +127,7 @@ const POSSystem = () => {
             onLoadProfits={sales.loadProfits}
           />
         )}
+        </main>
       </div>
     </div>
   );
