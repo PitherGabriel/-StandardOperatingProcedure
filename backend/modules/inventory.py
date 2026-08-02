@@ -1,6 +1,8 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import hashlib
+import logging
+import traceback
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import uuid
@@ -9,6 +11,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from babel.dates import format_date
 
 BUSINESS_TZ = ZoneInfo("America/Guayaquil")
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryManager:
@@ -745,13 +749,13 @@ class InventoryManager:
             now = datetime.now(BUSINESS_TZ)
 
             if period == 'today':
-                print("Filtrando ventas de hoy")
+                logger.debug("Filtrando ventas de hoy")
                 start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"{format_date(now, format='full', locale='es_ES')}"
 
             elif period == 'week':
-                print("Filtrando ventas de la semana")
+                logger.debug("Filtrando ventas de la semana")
                 start_date = now - timedelta(days=now.weekday())
                 start_date = start_date.replace(hour=0, minute=0, second=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -760,13 +764,13 @@ class InventoryManager:
                     f"{format_date(end_date, 'd MMMM y', locale='es_ES')}")
 
             elif period == 'month':
-                print("Filtrando ventas del mes")
+                logger.debug("Filtrando ventas del mes")
                 start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"{format_date(start_date, 'MMMM y', locale='es_ES')}"
 
             elif period == 'custom' and custom_start and custom_end:
-                print("Filtrando ventas en rango personalizado")
+                logger.debug("Filtrando ventas en rango personalizado")
                 start_date = datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
                 end_date = datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=BUSINESS_TZ)
                 period_label = (
@@ -775,21 +779,52 @@ class InventoryManager:
             else:
                 return {'success': False, 'error': 'Período no válido'}
 
-            print(f"Periodo: {period_label}")
-            date_col = self.sheet_sales.col_values(2)[1:]
-            headers = self.sheet_sales.row_values(1)
+            logger.info(
+                "get_profit_analysis período=%s rango=[%s .. %s] etiqueta=%r",
+                period, start_date.date(), end_date.date(), period_label,
+            )
 
-            matching_rows = []
-            for i, date_str in enumerate(date_col):
+            # Single bulk read of the whole sheet, then filter in memory.
+            #
+            # The previous approach built one A1 range per matching row and passed them
+            # all to values_batch_get(). That call encodes every range as a query
+            # parameter, so for a full month the request URL exceeded Google's size
+            # limit and the API rejected it — which surfaced here as a silent failure
+            # (it worked for shorter ranges like 01–24 that produced fewer rows).
+            # A single get_all_values() has no such ceiling and is also fewer requests.
+            try:
+                all_values = self.sheet_sales.get_all_values()
+            except Exception:
+                logger.exception("Fallo al leer la hoja de Ventas (%s)", self.sheet_sales.title)
+                return {
+                    'success': False,
+                    'error': 'No se pudo leer la hoja de Ventas',
+                    'traceback': traceback.format_exc(),
+                }
+
+            headers = all_values[0] if all_values else []
+            data_rows = all_values[1:] if len(all_values) > 1 else []
+            logger.info("Ventas en hoja: %d filas de datos", len(data_rows))
+
+            filtered_sales = []
+            bad_dates = 0
+            for row in data_rows:
+                date_str = row[1] if len(row) > 1 else ''
                 try:
                     sale_date = datetime.strptime(date_str, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
-                    if start_date.date() <= sale_date.date() <= end_date.date():
-                        matching_rows.append(i + 2)
-                except Exception:
+                except (ValueError, TypeError):
+                    bad_dates += 1
                     continue
+                if start_date.date() <= sale_date.date() <= end_date.date():
+                    filtered_sales.append(dict(zip(headers, row)))
 
-            if not matching_rows:
-                print("Periodo de fecha no encontrado en lista de ventas")
+            logger.info(
+                "Filas coincidentes: %d (fechas ilegibles omitidas: %d)",
+                len(filtered_sales), bad_dates,
+            )
+
+            if not filtered_sales:
+                logger.info("Sin ventas en el período seleccionado")
                 return {
                     'success': True,
                     'data': {
@@ -803,19 +838,6 @@ class InventoryManager:
                     }
                 }
 
-            col_letter = chr(64 + len(headers))
-            sheet_name = self.sheet_sales.title
-            ranges = [f"'{sheet_name}'!A{row}:{col_letter}{row}" for row in matching_rows]
-
-            batch_data = self.sheet_sales.spreadsheet.values_batch_get(ranges)
-
-            filtered_sales = []
-            for value_range in batch_data.get('valueRanges', []):
-                values = value_range.get('values', [])
-                if values:
-                    record = dict(zip(headers, values[0]))
-                    filtered_sales.append(record)
-
             inventory = self.sheet_inventory.get_all_records()
             costs_dict = {item['Codigo']: float(item.get('Costo', 0)) for item in inventory}
 
@@ -827,62 +849,81 @@ class InventoryManager:
             vendedores_stats = {}
             metodo_pago_stats = {}
 
-            for sale in filtered_sales:
-                codigo = sale.get('Codigo', '')
-                cantidad = Decimal(str(sale.get('Cantidad', 0)))
-                precio_venta = Decimal(str(sale.get('PrecioUnitario', 0)))
-                costo_unitario = Decimal(str(costs_dict.get(codigo, 0)))
-                vendedor = sale.get('Vendedor', 'Sistema')
-                metodo_pago = (sale.get('MetodoPago', '') or 'efectivo').lower().strip()
+            processed_sales = 0
+            skipped_sales = 0
+            for row_idx, sale in enumerate(filtered_sales, start=1):
+                try:
+                    codigo = sale.get('Codigo', '')
+                    cantidad = Decimal(str(sale.get('Cantidad', 0) or 0))
+                    precio_venta = Decimal(str(sale.get('PrecioUnitario', 0) or 0))
+                    costo_unitario = Decimal(str(costs_dict.get(codigo, 0) or 0))
+                    vendedor = sale.get('Vendedor', 'Sistema')
+                    metodo_pago = (sale.get('MetodoPago', '') or 'efectivo').lower().strip()
 
-                ingreso = (precio_venta * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
-                costo = (costo_unitario * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
-                utilidad = (ingreso - costo).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    ingreso = (precio_venta * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
+                    costo = (costo_unitario * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
+                    utilidad = (ingreso - costo).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
-                total_ingresos += ingreso
-                total_costos += costo
-                total_unidades += cantidad
+                    total_ingresos += ingreso
+                    total_costos += costo
+                    total_unidades += cantidad
 
-                ventas_detalle.append({
-                    'fecha': sale.get('Fecha', ''),
-                    'hora': sale.get('Hora', ''),
-                    'producto': sale.get('Nombre', ''),
-                    'cantidad': float(cantidad),
-                    'precio_venta': float(precio_venta),
-                    'costo_unitario': float(costo_unitario),
-                    'ingreso': float(ingreso),
-                    'costo': float(costo),
-                    'utilidad': float(utilidad),
-                    'vendedor': vendedor
-                })
-
-                if codigo not in productos_vendidos:
-                    productos_vendidos[codigo] = {
+                    ventas_detalle.append({
+                        'fecha': sale.get('Fecha', ''),
+                        'hora': sale.get('Hora', ''),
                         'producto': sale.get('Nombre', ''),
-                        'codigo': codigo,
-                        'cantidad': Decimal("0"),
-                        'ingresos': Decimal("0"),
-                        'costos': Decimal("0"),
-                        'utilidad': Decimal("0")
-                    }
-                productos_vendidos[codigo]['cantidad'] += cantidad
-                productos_vendidos[codigo]['ingresos'] += ingreso
-                productos_vendidos[codigo]['costos'] += costo
-                productos_vendidos[codigo]['utilidad'] += utilidad
+                        'cantidad': float(cantidad),
+                        'precio_venta': float(precio_venta),
+                        'costo_unitario': float(costo_unitario),
+                        'ingreso': float(ingreso),
+                        'costo': float(costo),
+                        'utilidad': float(utilidad),
+                        'vendedor': vendedor
+                    })
 
-                if vendedor not in vendedores_stats:
-                    vendedores_stats[vendedor] = {'vendedor': vendedor, 'ventas': 0, 'ingresos': Decimal("0"), 'utilidad': Decimal("0")}
-                vendedores_stats[vendedor]['ventas'] += 1
-                vendedores_stats[vendedor]['ingresos'] += ingreso
-                vendedores_stats[vendedor]['utilidad'] += utilidad
+                    if codigo not in productos_vendidos:
+                        productos_vendidos[codigo] = {
+                            'producto': sale.get('Nombre', ''),
+                            'codigo': codigo,
+                            'cantidad': Decimal("0"),
+                            'ingresos': Decimal("0"),
+                            'costos': Decimal("0"),
+                            'utilidad': Decimal("0")
+                        }
+                    productos_vendidos[codigo]['cantidad'] += cantidad
+                    productos_vendidos[codigo]['ingresos'] += ingreso
+                    productos_vendidos[codigo]['costos'] += costo
+                    productos_vendidos[codigo]['utilidad'] += utilidad
 
-                if metodo_pago not in metodo_pago_stats:
-                    metodo_pago_stats[metodo_pago] = {'metodo': metodo_pago, 'transacciones': 0, 'ingresos': Decimal("0")}
-                metodo_pago_stats[metodo_pago]['transacciones'] += 1
-                metodo_pago_stats[metodo_pago]['ingresos'] += ingreso
+                    if vendedor not in vendedores_stats:
+                        vendedores_stats[vendedor] = {'vendedor': vendedor, 'ventas': 0, 'ingresos': Decimal("0"), 'utilidad': Decimal("0")}
+                    vendedores_stats[vendedor]['ventas'] += 1
+                    vendedores_stats[vendedor]['ingresos'] += ingreso
+                    vendedores_stats[vendedor]['utilidad'] += utilidad
+
+                    if metodo_pago not in metodo_pago_stats:
+                        metodo_pago_stats[metodo_pago] = {'metodo': metodo_pago, 'transacciones': 0, 'ingresos': Decimal("0")}
+                    metodo_pago_stats[metodo_pago]['transacciones'] += 1
+                    metodo_pago_stats[metodo_pago]['ingresos'] += ingreso
+
+                    processed_sales += 1
+                except Exception:
+                    # One malformed row (e.g. a non-numeric Cantidad/PrecioUnitario like
+                    # "1,50") must not abort the whole cierre. Log the offending record
+                    # with its position so it can be traced and fixed in the sheet.
+                    skipped_sales += 1
+                    logger.exception("Error procesando venta #%d (omitida): %r", row_idx, sale)
+                    continue
+
+            if skipped_sales:
+                logger.warning("%d de %d ventas no se pudieron procesar y fueron omitidas",
+                                skipped_sales, len(filtered_sales))
 
             utilidad_neta = (total_ingresos - total_costos).quantize(Decimal("0.01"), ROUND_HALF_UP)
             margen_total = (utilidad_neta / total_ingresos * 100).quantize(Decimal("0.01"), ROUND_HALF_UP) if total_ingresos > 0 else Decimal("0.00")
+
+            logger.info("Utilidad neta del período: %s (ventas procesadas: %d)",
+                        utilidad_neta, processed_sales)
 
             productos_list = sorted(
                 [{**p, 'cantidad': float(p['cantidad']), 'ingresos': float(p['ingresos']),
@@ -902,7 +943,7 @@ class InventoryManager:
                 for m in sorted(metodo_pago_stats.values(), key=lambda x: x['ingresos'], reverse=True)
             ]
 
-            print("Análisis finalizado exitosamente")
+            logger.info("Análisis finalizado exitosamente (%d ventas)", processed_sales)
             return {
                 'success': True,
                 'data': {
@@ -911,9 +952,9 @@ class InventoryManager:
                     'total_costos': float(round(total_costos, 2)),
                     'utilidad_neta': float(round(utilidad_neta, 2)),
                     'margen_total': float(round(margen_total, 2)),
-                    'total_ventas': len(filtered_sales),
+                    'total_ventas': processed_sales,
                     'total_unidades': float(total_unidades),
-                    'ticket_promedio': float(round(total_ingresos / len(filtered_sales), 2)) if filtered_sales else 0,
+                    'ticket_promedio': float(round(total_ingresos / processed_sales, 2)) if processed_sales else 0,
                     'productos_vendidos': productos_list,
                     'vendedores': vendedores_list,
                     'ventas_detalle': ventas_detalle,
@@ -922,7 +963,10 @@ class InventoryManager:
             }
 
         except Exception as e:
-            import traceback
+            # Log the full traceback here so it lands in the backend console/log,
+            # not only in the JSON response the caller may discard.
+            logger.exception("get_profit_analysis falló (period=%s, %s..%s)",
+                             period, custom_start, custom_end)
             return {'success': False, 'error': str(e), 'traceback': traceback.format_exc()}
 
     def export_cierre_caja(self, period='today', custom_start=None, custom_end=None):

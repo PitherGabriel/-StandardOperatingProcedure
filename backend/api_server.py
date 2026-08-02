@@ -4,6 +4,15 @@ from modules.inventory import InventoryManager
 from modules.inference import InferenceModel
 import time
 import os
+import logging
+
+# Configure application-wide logging once, at the entry point. Without this the
+# module loggers (e.g. modules.inventory) have no handler and their output is
+# dropped — which is how errors ended up going silent in the backend console.
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s %(levelname)-8s [%(name)s] %(message)s',
+)
 
 _sri_manager = None
 
