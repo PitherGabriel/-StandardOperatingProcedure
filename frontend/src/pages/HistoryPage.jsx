@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { History, RotateCcw, X, Loader, ChevronDown, ChevronRight } from 'lucide-react';
+import { ClockCounterClockwise as History, ArrowCounterClockwise as RotateCcw, X, Spinner as Loader, CaretDown as ChevronDown, CaretRight as ChevronRight } from '@phosphor-icons/react';
 import { refundSale } from '../services/salesService';
 import { HistoryRowSkeleton } from '../components/ui/Skeleton';
 

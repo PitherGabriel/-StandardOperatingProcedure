@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { Spinner as Loader, User, Lock, Eye, EyeSlash as EyeOff } from '@phosphor-icons/react';
 
 export default function LoginScreen({ onLogin, showNotification }) {
   const [form, setForm] = useState({ username: '', password: '' });
@@ -40,7 +40,7 @@ export default function LoginScreen({ onLogin, showNotification }) {
       <div className="relative flex flex-col items-center justify-start bg-white p-8 sm:p-12 md:h-screen md:overflow-y-auto">
         <div className="w-full max-w-sm animate-fade-in-up">
           <div className="text-center mb-8">
-            <img src="logo_shadowed.png" alt="Comercial TB" className="h-52 w-auto mx-auto mb-0" />
+            <img src="/logo_shadowed.png" alt="Comercial TB" className="h-52 w-auto mx-auto mb-0" />
             <h1 className="text-3xl font-bold text-gray-900">Bienvenido de nuevo</h1>
             <p className="text-gray-600 mt-2">
               Ingresa tu usuario y contraseña para continuar

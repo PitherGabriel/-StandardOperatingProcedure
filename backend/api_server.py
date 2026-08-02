@@ -333,7 +333,9 @@ def create_app():
     def get_sales_chart():
         try:
             period = request.args.get('period', 'today')
-            result = inventory.get_sales_chart(period)
+            custom_start = request.args.get('start_date')
+            custom_end = request.args.get('end_date')
+            result = inventory.get_sales_chart(period, custom_start, custom_end)
             return jsonify(result)
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

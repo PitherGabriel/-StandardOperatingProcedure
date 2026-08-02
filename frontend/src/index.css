@@ -17,8 +17,23 @@
   --color-header-start: #3982ac;
   --color-header-end:   #125f69;
 
-  /* ── Accent (info / toast) ────────────────────────────────────────*/
-  --color-accent: #0075a7;
+  /* ── Canvas & ink (SaaS neutral shell) ────────────────────────────
+     Grey page background so white cards / sidebar / topbar separate by
+     colour contrast alone — no divider lines. Ink is the near-black
+     primary action colour (buttons, active toggles). */
+  --color-canvas:    #f4f4f7;
+  --color-ink:       #111827; /* primary button / black accent */
+  --color-ink-hover: #1f2937;
+
+  /* ── Accent (indigo / periwinkle) ─────────────────────────────────
+     The single SaaS accent, used sparingly: active nav, links, chart
+     series, info highlights. Status colours (below) stay reserved for
+     good / warning / critical states only. */
+  --color-accent-50:  #eef2ff;
+  --color-accent-100: #e0e7ff;
+  --color-accent-500: #6366f1; /* primary accent */
+  --color-accent-600: #4f46e5; /* hover */
+  --color-accent-700: #4338ca;
 
   /* ── Semantic status ──────────────────────────────────────────────
      Prefer these over ad-hoc green / red / yellow shades for POS states. */

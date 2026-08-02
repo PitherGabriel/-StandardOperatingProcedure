@@ -11,7 +11,6 @@ import PosBox from './components/pos/PosBox';
 import StockTable from './components/inventory/StockTable';
 import InventoryForm from './components/inventory/InventoryForm';
 import HistoryPage from './pages/HistoryPage';
-import ProfitsPage from './pages/ProfitsPage';
 import CategoriasPage from './pages/CategoriasPage';
 import DashboardPage from './pages/DashboardPage';
 
@@ -31,7 +30,6 @@ const POSSystem = () => {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'history') sales.loadHistory();
-    if (tab === 'profits') sales.loadProfits();
   };
 
   if (!auth.isAuthenticated) {
@@ -44,7 +42,7 @@ const POSSystem = () => {
   }
 
   return (
-    <div className="h-screen flex bg-gray-50 overflow-hidden">
+    <div className="h-screen flex bg-canvas overflow-hidden">
       {notification && <NotificationToast notification={notification} setNotification={setNotification} />}
 
       <Sidebar
@@ -52,7 +50,6 @@ const POSSystem = () => {
         activeSubTab={activeSubTab}
         onTabChange={handleTabChange}
         onSubTabChange={setActiveSubTab}
-        currentUser={auth.currentUser}
         onLogout={auth.handleLogout}
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
@@ -65,11 +62,12 @@ const POSSystem = () => {
           showNotification={showNotification}
           alerts={alerts}
           onMenuClick={() => setMobileNavOpen(true)}
+          currentUser={auth.currentUser}
         />
 
         <main className="p-4 lg:p-6 flex-1 min-h-0 overflow-auto">
           {activeTab === 'dashboard' && (
-            <DashboardPage currentUser={auth.currentUser} inventory={auth.inventory} />
+            <DashboardPage currentUser={auth.currentUser} showNotification={showNotification} />
           )}
 
         {activeTab === 'pos' && (
@@ -112,19 +110,6 @@ const POSSystem = () => {
             setFilterEndDate={sales.setFilterEndDate}
             onHistoryChange={() => { sales.loadHistory(); auth.refreshInventory(); }}
             showNotification={showNotification}
-          />
-        )}
-        {activeTab === 'profits' && (
-          <ProfitsPage
-            loading={sales.profitsLoading}
-            profitAnalysis={sales.profitAnalysis}
-            selectedPeriod={sales.selectedPeriod}
-            setSelectedPeriod={sales.setSelectedPeriod}
-            customStartDate={sales.customStartDate}
-            setCustomStartDate={sales.setCustomStartDate}
-            customEndDate={sales.customEndDate}
-            setCustomEndDate={sales.setCustomEndDate}
-            onLoadProfits={sales.loadProfits}
           />
         )}
         </main>

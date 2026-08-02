@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Loader, Plus, X } from 'lucide-react';
+import { CaretDown as ChevronDown, CaretRight as ChevronRight, Spinner as Loader, Plus, X } from '@phosphor-icons/react';
 import { fetchCategories, addCategory } from '../services/inventoryService';
 
 const STORE_EMOJIS = [
@@ -219,8 +219,8 @@ export default function CategoriasPage({ showNotification }) {
                       {subcategories.length} subcategoría{subcategories.length !== 1 ? 's' : ''}
                     </span>
                     {expanded[category]
-                      ? <ChevronDown size={16} className="text-gray-400" />
-                      : <ChevronRight size={16} className="text-gray-400" />
+                      ? <ChevronDown size={16} weight="regular" className="text-gray-400" />
+                      : <ChevronRight size={16} weight="regular" className="text-gray-400" />
                     }
                   </div>
                 </button>

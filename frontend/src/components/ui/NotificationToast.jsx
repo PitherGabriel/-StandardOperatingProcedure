@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AlertCircle, Check, Info, X } from 'lucide-react';
+import { WarningCircle as AlertCircle, Check, Info, X } from '@phosphor-icons/react';
 
 export default function NotificationToast({ notification, setNotification }) {
   useEffect(() => {

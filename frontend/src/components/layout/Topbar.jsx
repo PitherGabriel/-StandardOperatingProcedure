@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, Printer, Bell, PackageX, AlertTriangle } from 'lucide-react';
+import { List as Menu, MagnifyingGlass as Search, Printer, Bell, Prohibit as PackageX, Warning as AlertTriangle } from '@phosphor-icons/react';
 
 const TITLES = {
   pos: 'Caja',
   dashboard: 'Dashboard',
   productos: 'Productos',
   history: 'Historial',
-  profits: 'Utilidades',
 };
 
-export default function Topbar({ activeTab, printer, showNotification, alerts = [], onMenuClick }) {
+function initials(user) {
+  const name = user?.nombre || user?.username || '';
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'U';
+}
+
+export default function Topbar({ activeTab, printer, showNotification, alerts = [], onMenuClick, currentUser }) {
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef(null);
   const prevConnected = useRef(printer?.connected ?? false);
@@ -33,31 +37,40 @@ export default function Topbar({ activeTab, printer, showNotification, alerts = 
   const lowStock = alerts.filter(a => a.cantidad > 0);
 
   return (
-    <header className="h-16 shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+    <header className="h-16 shrink-0 bg-canvas flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}
-          className="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100 lg:hidden"
+          className="p-2 -ml-2 rounded-full text-gray-500 hover:bg-white lg:hidden"
           aria-label="Abrir menú"
         >
-          <Menu size={22} />
+          <Menu size={20} />
         </button>
-        <h1 className="text-xl font-bold text-gray-900">{TITLES[activeTab] || 'Comercial TB'}</h1>
+        <h1 className="text-2xl font-bold text-ink">{TITLES[activeTab] || 'Comercial TB'}</h1>
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Search */}
+        <button
+          onClick={() => showNotification?.('Búsqueda global — próximamente', 'info')}
+          title="Buscar"
+          className="p-2.5 rounded-full bg-white shadow-sm text-gray-500 hover:text-ink transition"
+        >
+          <Search size={18} />
+        </button>
+
         {/* Printer */}
         {printer && (
           <button
             onClick={printer.connected ? undefined : printer.connect}
             title={printer.connected ? 'Impresora conectada' : 'Conectar impresora'}
-            className={`p-2 rounded-lg transition ${
+            className={`p-2.5 rounded-full transition shadow-sm ${
               printer.connected
-                ? 'bg-forest-500/10 text-forest-700 cursor-default'
-                : 'text-gray-500 hover:bg-gray-100'
+                ? 'bg-accent-500/10 text-accent-600 cursor-default'
+                : 'bg-white text-gray-500 hover:text-ink'
             }`}
           >
-            <Printer size={18} />
+            <Printer size={18} weight={printer.connected ? 'fill' : 'regular'} />
           </button>
         )}
 
@@ -65,10 +78,10 @@ export default function Topbar({ activeTab, printer, showNotification, alerts = 
         <div className="relative" ref={bellRef}>
           <button
             onClick={() => setBellOpen(o => !o)}
-            className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition"
+            className="relative p-2.5 rounded-full bg-white shadow-sm text-gray-500 hover:text-ink transition"
             title="Notificaciones"
           >
-            <Bell size={18} />
+            <Bell size={18} weight={bellOpen ? 'fill' : 'regular'} />
             {alerts.length > 0 && (
               <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                 {alerts.length}
@@ -117,6 +130,14 @@ export default function Topbar({ activeTab, printer, showNotification, alerts = 
             </div>
           )}
         </div>
+
+        {/* User */}
+        <button
+          title={`${currentUser?.nombre || currentUser?.username || ''}${currentUser?.role ? ` · ${currentUser.role}` : ''}`}
+          className="h-10 w-10 shrink-0 rounded-full bg-accent-100 text-accent-600 font-semibold text-sm flex items-center justify-center shadow-sm hover:bg-accent-500/20 transition"
+        >
+          {initials(currentUser)}
+        </button>
       </div>
     </header>
   );

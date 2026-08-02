@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Pencil, PlusCircle, X, Loader, Barcode } from 'lucide-react';
+import { Pencil, PlusCircle, X, Spinner as Loader, Barcode } from '@phosphor-icons/react';
 import { updateProduct, adjustStock, fetchCategories } from '../../services/inventoryService';
 import { useEffect } from 'react';
 

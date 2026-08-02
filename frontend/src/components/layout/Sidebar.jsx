@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  ShoppingCart, LayoutDashboard, Package, History, TrendingUp,
-  Search, LogOut, ChevronDown, List, PlusCircle, Tags,
-} from 'lucide-react';
+import { ShoppingCart, SquaresFour as LayoutDashboard, Package, ClockCounterClockwise as History, SignOut as LogOut, CaretDown as ChevronDown, ListBullets as List, PlusCircle, Tag as Tags } from '@phosphor-icons/react';
 
 const NAV = [
   { id: 'pos', label: 'Caja', icon: ShoppingCart },
@@ -16,17 +13,15 @@ const NAV = [
     ],
   },
   { id: 'history', label: 'Historial', icon: History },
-  { id: 'profits', label: 'Utilidades', icon: TrendingUp },
 ];
 
-function initials(user) {
-  const name = user?.nombre || user?.username || '';
-  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'U';
-}
+// Labels/text: hidden on the collapsed desktop rail, revealed on hover; always
+// visible in the mobile drawer (where the sidebar is full-width).
+const REVEAL = 'whitespace-nowrap opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200';
 
 export default function Sidebar({
   activeTab, activeSubTab, onTabChange, onSubTabChange,
-  currentUser, onLogout, open = false, onClose,
+  onLogout, open = false, onClose,
 }) {
   const [productsExpanded, setProductsExpanded] = useState(activeTab === 'productos');
 
@@ -42,39 +37,35 @@ export default function Sidebar({
   };
 
   const itemBase =
-    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition';
+    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition';
 
   return (
     <>
+      {/* Mobile backdrop */}
       {open && (
         <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={onClose} />
       )}
 
+      {/* Desktop spacer: reserves the 64px rail so the content sits beside it.
+          The aside itself is fixed and expands OVER the content on hover, so the
+          content never reflows. */}
+      <div className="hidden lg:block w-16 shrink-0" aria-hidden="true" />
+
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col transition-transform lg:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`group fixed z-40 inset-y-0 left-0 flex flex-col bg-canvas overflow-hidden
+          w-64 lg:w-16 lg:hover:w-64
+          transition-[width,transform] duration-200 ease-out
+          lg:translate-x-0 lg:hover:shadow-xl lg:hover:shadow-black/5
+          ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Brand */}
-        <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100">
-          <img src="logo.png" alt="Comercial TB" className="h-9 w-auto" />
-          <span className="font-bold text-gray-900">Comercial TB</span>
-        </div>
-
-        {/* Search */}
-        <div className="px-4 pt-4">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Buscar…"
-              className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-forest-500 focus:bg-white transition"
-            />
-          </div>
+        <div className="flex items-center gap-2.5 px-3 h-16 shrink-0">
+          <img src="/logo.png" alt="Comercial TB" className="h-9 w-9 object-contain shrink-0" />
+          <span className={`font-bold text-ink ${REVEAL}`}>Comercial TB</span>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-1">
           {NAV.map(item => {
             const active = activeTab === item.id;
             const Icon = item.icon;
@@ -82,24 +73,26 @@ export default function Sidebar({
               <div key={item.id}>
                 <button
                   onClick={() => handleMain(item)}
+                  title={item.label}
                   className={`${itemBase} ${
                     active
-                      ? 'bg-forest-500/10 text-forest-700'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? 'bg-white shadow-sm text-ink'
+                      : 'text-gray-500 hover:bg-white/70 hover:text-ink'
                   }`}
                 >
-                  <Icon size={18} className="shrink-0" />
-                  <span className="flex-1 text-left">{item.label}</span>
+                  <Icon size={18} weight={active ? 'fill' : 'regular'} className={`shrink-0 ${active ? 'text-ink' : ''}`} />
+                  <span className={`flex-1 text-left ${REVEAL}`}>{item.label}</span>
                   {item.subs && (
                     <ChevronDown
                       size={16}
-                      className={`shrink-0 transition-transform ${productsExpanded && active ? 'rotate-180' : ''}`}
+                      weight="regular"
+                      className={`shrink-0 transition-transform ${REVEAL} ${productsExpanded && active ? 'rotate-180' : ''}`}
                     />
                   )}
                 </button>
 
                 {item.subs && productsExpanded && active && (
-                  <div className="mt-1 ml-4 pl-4 border-l border-gray-200 space-y-1">
+                  <div className="mt-1 ml-5 pl-4 border-l border-gray-200 space-y-1">
                     {item.subs.map(sub => {
                       const subActive = activeSubTab === sub.id;
                       const SubIcon = sub.icon;
@@ -107,14 +100,15 @@ export default function Sidebar({
                         <button
                           key={sub.id}
                           onClick={() => { onSubTabChange(sub.id); onClose?.(); }}
+                          title={sub.label}
                           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition ${
                             subActive
-                              ? 'text-forest-700 font-semibold'
-                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                              ? 'text-accent-700 font-semibold'
+                              : 'text-gray-500 hover:text-ink hover:bg-white/70'
                           }`}
                         >
-                          <SubIcon size={15} className="shrink-0" />
-                          {sub.label}
+                          <SubIcon size={15} weight={subActive ? 'fill' : 'regular'} className="shrink-0" />
+                          <span className={REVEAL}>{sub.label}</span>
                         </button>
                       );
                     })}
@@ -125,26 +119,16 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* User */}
-        <div className="border-t border-gray-100 p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 shrink-0 rounded-full bg-forest-500/10 text-forest-700 font-semibold flex items-center justify-center text-sm">
-              {initials(currentUser)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {currentUser?.nombre || currentUser?.username}
-              </p>
-              <p className="text-xs text-gray-500 truncate">{currentUser?.role}</p>
-            </div>
-            <button
-              onClick={onLogout}
-              title="Cerrar sesión"
-              className="p-2 rounded-lg text-gray-400 hover:text-danger hover:bg-gray-100 transition"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
+        {/* Logout */}
+        <div className="p-3 shrink-0">
+          <button
+            onClick={onLogout}
+            title="Cerrar sesión"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-white/70 hover:text-danger transition"
+          >
+            <LogOut size={18} className="shrink-0" />
+            <span className={`flex-1 text-left ${REVEAL}`}>Cerrar sesión</span>
+          </button>
         </div>
       </aside>
     </>

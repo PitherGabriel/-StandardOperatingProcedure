@@ -15,6 +15,13 @@ BUSINESS_TZ = ZoneInfo("America/Guayaquil")
 logger = logging.getLogger(__name__)
 
 
+def _pct_delta(cur, prev):
+    """Percentage change of `cur` vs `prev`. None when there's no basis to compare."""
+    if not prev:
+        return None
+    return round((cur - prev) / prev * 100)
+
+
 class InventoryManager:
     def __init__(self, credentials_file, spreadsheet_name):
         scope = ['https://spreadsheets.google.com/feeds',
@@ -519,7 +526,7 @@ class InventoryManager:
         except Exception as e:
             return {'error': str(e)}
 
-    def get_sales_chart(self, period='today'):
+    def get_sales_chart(self, period='today', custom_start=None, custom_end=None):
         """Returns time-series sales data for charts (revenue + sales count per bucket)"""
         from datetime import datetime, timedelta
 
@@ -573,6 +580,57 @@ class InventoryManager:
             labels = [(start + timedelta(days=i)).strftime('%d/%m') for i in range(days_count)]
             revenue = [round(buckets[d]['revenue'], 2) for d in day_dates]
             counts = [len(buckets[d]['sales']) for d in day_dates]
+
+        elif period == 'custom' and custom_start and custom_end:
+            start = datetime.strptime(custom_start, '%Y-%m-%d')
+            end = datetime.strptime(custom_end, '%Y-%m-%d')
+            if end < start:
+                start, end = end, start
+            records = self.get_sales_history(date_from=start.strftime('%Y-%m-%d'),
+                                             date_to=end.strftime('%Y-%m-%d'))
+            span_days = (end - start).days + 1
+
+            # Adaptive granularity: hourly for a single day, daily up to ~2 months,
+            # weekly beyond — so the x-axis never gets unreadably dense.
+            if span_days <= 1:
+                buckets = {str(h).zfill(2): {'revenue': 0.0, 'sales': set()} for h in range(24)}
+                for r in records:
+                    hora = str(r.get('Hora', ''))
+                    h = hora.split(':')[0].zfill(2) if hora else None
+                    if h and h in buckets:
+                        buckets[h]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                        buckets[h]['sales'].add(str(r.get('VentaID', '')))
+                labels = [f"{h}:00" for h in range(24)]
+                revenue = [round(buckets[str(h).zfill(2)]['revenue'], 2) for h in range(24)]
+                counts = [len(buckets[str(h).zfill(2)]['sales']) for h in range(24)]
+
+            elif span_days <= 62:
+                day_dates = [(start + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(span_days)]
+                buckets = {d: {'revenue': 0.0, 'sales': set()} for d in day_dates}
+                for r in records:
+                    d = str(r.get('Fecha', ''))
+                    if d in buckets:
+                        buckets[d]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                        buckets[d]['sales'].add(str(r.get('VentaID', '')))
+                labels = [(start + timedelta(days=i)).strftime('%d/%m') for i in range(span_days)]
+                revenue = [round(buckets[d]['revenue'], 2) for d in day_dates]
+                counts = [len(buckets[d]['sales']) for d in day_dates]
+
+            else:
+                num_weeks = (span_days + 6) // 7
+                week_buckets = [{'revenue': 0.0, 'sales': set()} for _ in range(num_weeks)]
+                for r in records:
+                    try:
+                        d = datetime.strptime(str(r.get('Fecha', '')), '%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        continue
+                    idx = (d - start).days // 7
+                    if 0 <= idx < num_weeks:
+                        week_buckets[idx]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                        week_buckets[idx]['sales'].add(str(r.get('VentaID', '')))
+                labels = [(start + timedelta(days=i * 7)).strftime('%d/%m') for i in range(num_weeks)]
+                revenue = [round(b['revenue'], 2) for b in week_buckets]
+                counts = [len(b['sales']) for b in week_buckets]
 
         else:
             return {'success': False, 'error': 'Período no válido'}
@@ -740,6 +798,45 @@ class InventoryManager:
                 })
 
         return alerts
+
+    def _period_totals(self, data_rows, headers, costs_dict, start_d, end_d):
+        """Top-line totals for a date range (used for the previous-period comparison).
+
+        Reuses the already-loaded sheet rows and cost map, so it adds no extra
+        Google Sheets reads. Returns floats ready for trend math.
+        """
+        ingresos = Decimal("0")
+        costos = Decimal("0")
+        unidades = Decimal("0")
+        ventas = 0
+        for row in data_rows:
+            date_str = row[1] if len(row) > 1 else ''
+            try:
+                d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                continue
+            if not (start_d <= d <= end_d):
+                continue
+            rec = dict(zip(headers, row))
+            try:
+                cantidad = Decimal(str(rec.get('Cantidad', 0) or 0))
+                precio = Decimal(str(rec.get('PrecioUnitario', 0) or 0))
+                costo_u = Decimal(str(costs_dict.get(rec.get('Codigo', ''), 0) or 0))
+            except Exception:
+                continue
+            ingresos += precio * cantidad
+            costos += costo_u * cantidad
+            unidades += cantidad
+            ventas += 1
+        utilidad = ingresos - costos
+        return {
+            'ingresos': float(round(ingresos, 2)),
+            'utilidad': float(round(utilidad, 2)),
+            'margen': float(round(utilidad / ingresos * 100, 2)) if ingresos > 0 else 0.0,
+            'ventas': ventas,
+            'unidades': float(unidades),
+            'ticket': float(round(ingresos / ventas, 2)) if ventas else 0.0,
+        }
 
     def get_profit_analysis(self, period='today', custom_start=None, custom_end=None):
         """Analiza las utilidades para cierre de caja por período"""
@@ -943,22 +1040,41 @@ class InventoryManager:
                 for m in sorted(metodo_pago_stats.values(), key=lambda x: x['ingresos'], reverse=True)
             ]
 
+            # ── Trend vs the immediately-preceding equal-length window ──────────
+            cur_ingresos = float(round(total_ingresos, 2))
+            cur_ticket = float(round(total_ingresos / processed_sales, 2)) if processed_sales else 0
+            span = (end_date.date() - start_date.date()).days
+            prev_end = start_date.date() - timedelta(days=1)
+            prev_start = prev_end - timedelta(days=span)
+            prev = self._period_totals(data_rows, headers, costs_dict, prev_start, prev_end)
+            logger.info("Período anterior [%s .. %s]: ingresos=%.2f", prev_start, prev_end, prev['ingresos'])
+
+            trends = {
+                'revenue_trend': _pct_delta(cur_ingresos, prev['ingresos']),
+                'utilidad_trend': _pct_delta(float(round(utilidad_neta, 2)), prev['utilidad']),
+                'margen_trend': round(float(margen_total) - prev['margen']) if prev['ingresos'] > 0 else None,
+                'ventas_trend': _pct_delta(processed_sales, prev['ventas']),
+                'unidades_trend': _pct_delta(float(total_unidades), prev['unidades']),
+                'ticket_trend': _pct_delta(cur_ticket, prev['ticket']),
+            }
+
             logger.info("Análisis finalizado exitosamente (%d ventas)", processed_sales)
             return {
                 'success': True,
                 'data': {
                     'periodo': period_label,
-                    'total_ingresos': float(round(total_ingresos, 2)),
+                    'total_ingresos': cur_ingresos,
                     'total_costos': float(round(total_costos, 2)),
                     'utilidad_neta': float(round(utilidad_neta, 2)),
                     'margen_total': float(round(margen_total, 2)),
                     'total_ventas': processed_sales,
                     'total_unidades': float(total_unidades),
-                    'ticket_promedio': float(round(total_ingresos / processed_sales, 2)) if processed_sales else 0,
+                    'ticket_promedio': cur_ticket,
                     'productos_vendidos': productos_list,
                     'vendedores': vendedores_list,
                     'ventas_detalle': ventas_detalle,
                     'metodo_pago_breakdown': metodo_pago_list,
+                    **trends,
                 }
             }
 

@@ -1,4 +1,4 @@
-import { Plus, Minus} from 'lucide-react';
+import { Plus, Minus } from '@phosphor-icons/react';
 
 
 export default function QuantityInput({

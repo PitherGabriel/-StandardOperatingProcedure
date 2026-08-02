@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader } from 'lucide-react';
+import { Spinner as Loader } from '@phosphor-icons/react';
 import { addProduct, fetchCategories } from '../../services/inventoryService';
 
 const EMPTY = {
