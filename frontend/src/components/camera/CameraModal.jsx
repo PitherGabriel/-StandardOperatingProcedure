@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Webcam from 'react-webcam';
-import { X, Send, Camera, RotateCcw, CheckCircle } from 'lucide-react';
+import { X, PaperPlaneTilt as Send, Camera, ArrowCounterClockwise as RotateCcw, CheckCircle } from '@phosphor-icons/react';
 import { analyzePhoto } from '../../services/cameraService';
 import { processSale } from '../../services/salesService';
 
@@ -83,7 +84,7 @@ export default function CameraModal({ inventory, setInventory, showNotification,
     return (
       <button
         onClick={openCamera}
-        className="w-full bg-[#d33115] text-white hover:bg-[#801300] px-4 py-2.5 font-semibold justify-center rounded-lg flex items-center gap-2 transition"
+        className="w-full bg-accent-500 text-white hover:bg-accent-600 px-4 py-2.5 font-semibold justify-center rounded-xl flex items-center gap-2 transition"
       >
         <Camera size={20} />
         <span>Escanear</span>
@@ -99,7 +100,7 @@ export default function CameraModal({ inventory, setInventory, showNotification,
     </div>
   );
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col">
       {step === STEPS.CAMERA && (
         <>
@@ -274,6 +275,7 @@ export default function CameraModal({ inventory, setInventory, showNotification,
           <Spinner />
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

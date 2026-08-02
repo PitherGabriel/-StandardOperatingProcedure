@@ -3,15 +3,14 @@ import { useAuth } from './hooks/useAuth';
 import { useNotification } from './hooks/useNotification';
 import { useSales } from './hooks/useSales';
 import { usePrinter } from './hooks/usePrinter';
-import Header from './components/layout/Header';
-import TabNav from './components/layout/TabNav';
+import Sidebar from './components/layout/Sidebar';
+import Topbar from './components/layout/Topbar';
 import LoginScreen from './components/layout/LoginScreen';
 import NotificationToast from './components/ui/NotificationToast';
 import PosBox from './components/pos/PosBox';
 import StockTable from './components/inventory/StockTable';
 import InventoryForm from './components/inventory/InventoryForm';
 import HistoryPage from './pages/HistoryPage';
-import ProfitsPage from './pages/ProfitsPage';
 import CategoriasPage from './pages/CategoriasPage';
 import DashboardPage from './pages/DashboardPage';
 
@@ -22,6 +21,7 @@ const POSSystem = () => {
   const printer = usePrinter();
   const [activeTab, setActiveTab] = useState('pos');
   const [activeSubTab, setActiveSubTab] = useState('ver-inventario');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const alerts = auth.inventory
     .filter(item => item.cantidad <= item.minStock)
@@ -30,7 +30,6 @@ const POSSystem = () => {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'history') sales.loadHistory();
-    if (tab === 'profits') sales.loadProfits();
   };
 
   if (!auth.isAuthenticated) {
@@ -43,32 +42,39 @@ const POSSystem = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className="h-screen flex bg-canvas overflow-hidden">
       {notification && <NotificationToast notification={notification} setNotification={setNotification} />}
 
-      <Header
-        currentUser={auth.currentUser}
-        onLogout={auth.handleLogout}
-        printer={printer}
-        onPrinterConnect={printer.connect}
-        showNotification={showNotification}
-        alerts={alerts}
-      />
-
-      <TabNav
+      <Sidebar
         activeTab={activeTab}
         activeSubTab={activeSubTab}
         onTabChange={handleTabChange}
         onSubTabChange={setActiveSubTab}
+        onLogout={auth.handleLogout}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
       />
 
-<div className="p-4 flex-1 min-h-0 overflow-auto">
-        {activeTab === 'dashboard' && <DashboardPage />}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Topbar
+          activeTab={activeTab}
+          printer={printer}
+          showNotification={showNotification}
+          alerts={alerts}
+          onMenuClick={() => setMobileNavOpen(true)}
+          currentUser={auth.currentUser}
+        />
+
+        <main className="p-4 lg:p-6 flex-1 min-h-0 overflow-auto">
+          {activeTab === 'dashboard' && (
+            <DashboardPage currentUser={auth.currentUser} showNotification={showNotification} />
+          )}
 
         {activeTab === 'pos' && (
           <PosBox
             inventory={auth.inventory}
             setInventory={auth.setInventory}
+            refreshInventory={auth.refreshInventory}
             currentUser={auth.currentUser}
             showNotification={showNotification}
             printer={printer}
@@ -81,6 +87,7 @@ const POSSystem = () => {
             inventory={auth.inventory}
             onInventoryChange={auth.refreshInventory}
             showNotification={showNotification}
+            printer={printer}
           />
         )}
         {activeTab === 'productos' && activeSubTab === 'anadir-producto' && (
@@ -105,19 +112,7 @@ const POSSystem = () => {
             showNotification={showNotification}
           />
         )}
-        {activeTab === 'profits' && (
-          <ProfitsPage
-            loading={sales.profitsLoading}
-            profitAnalysis={sales.profitAnalysis}
-            selectedPeriod={sales.selectedPeriod}
-            setSelectedPeriod={sales.setSelectedPeriod}
-            customStartDate={sales.customStartDate}
-            setCustomStartDate={sales.setCustomStartDate}
-            customEndDate={sales.customEndDate}
-            setCustomEndDate={sales.setCustomEndDate}
-            onLoadProfits={sales.loadProfits}
-          />
-        )}
+        </main>
       </div>
     </div>
   );

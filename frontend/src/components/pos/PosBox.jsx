@@ -1,13 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ShoppingCart, Trash2, Search, Plus, ChevronLeft, LayoutGrid, X } from 'lucide-react';
+import { ShoppingCart, Trash as Trash2, MagnifyingGlass as Search, Plus, CaretLeft as ChevronLeft, GridFour as LayoutGrid, X } from '@phosphor-icons/react';
 import { useCart } from '../../hooks/useCart';
 import { processSale } from '../../services/salesService';
+import { fetchInventory } from '../../services/inventoryService';
 import { generateSaleId } from '../../services/printerService';
 import PriceSelector from './PriceSelector';
 import QuantityInput from './QuantitySelector';
 import CameraModal from '../camera/CameraModal';
 import PostSaleModal from '../receipt/PostSaleModal';
+import InventoryForm from '../inventory/InventoryForm';
 import { ProductRowSkeleton } from '../ui/Skeleton';
+import FolderCard from '../ui/FolderCard';
 
 const BUSINESS = {
   name: import.meta.env.VITE_BUSINESS_NAME || 'Mi Tienda',
@@ -15,14 +18,7 @@ const BUSINESS = {
   address: import.meta.env.VITE_BUSINESS_ADDRESS || 'Dirección del negocio',
 };
 
-const CAT_COLORS = [
-  '#3B82F6', '#10B981', '#8B5CF6', '#F97316', '#EC4899', '#14B8A6',
-  '#6366F1', '#EF4444', '#EAB308', '#06B6D4', '#F43F5E', '#059669',
-  '#7C3AED', '#D97706', '#0EA5E9', '#DC2626', '#84CC16', '#F59E0B',
-];
-
-
-export default function PosBox({ inventory, setInventory, currentUser, showNotification, printer = {}, inventoryLoading = false }) {
+export default function PosBox({ inventory, setInventory, refreshInventory, currentUser, showNotification, printer = {}, inventoryLoading = false }) {
   const { cart, addToCart, removeFromCart, setCartQuantity, changePriceType, clearCart, total } = useCart(inventory, showNotification);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -33,6 +29,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const [referencia, setReferencia] = useState('');
 
   const [searchOpen, setSearchOpen] = useState(false);
+  const [registerCode, setRegisterCode] = useState(null);
 
   const searchRef = useRef(null);
   const receivedRef = useRef(null);
@@ -40,9 +37,12 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
   const openSearch = () => { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 50); };
   const closeSearch = () => { setSearchOpen(false); setSearchTerm(''); };
 
-  // Barcode scanner buffer — collects rapid keypresses from scan gun
+  // Barcode scanner detection — a scan gun "types" the code as a fast burst then Enter.
+  // We track inter-key timing so it works regardless of focus and never hijacks human typing.
   const barcodeBuffer = useRef('');
-  const barcodeTimer = useRef(null);
+  const firstKeyTime = useRef(0);
+  const lastKeyTime = useRef(0);
+  const HUMAN_GAP_MS = 50; // gaps larger than this => a person, not a scanner
 
   // Build sorted category list with colors
   const categories = useMemo(() => {
@@ -54,7 +54,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     }
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, count], i) => ({ name, count, color: CAT_COLORS[i % CAT_COLORS.length] }));
+      .map(([name, count]) => ({ name, count }));
   }, [inventory]);
 
   const uncategorizedCount = useMemo(
@@ -78,31 +78,64 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     return inventory;
   }, [inventory, searchTerm, selectedCategory]);
 
+  // After registering a product from an unknown scan, refresh inventory and add it to the cart
+  const handleRegistered = async (codigo) => {
+    setRegisterCode(null);
+    try {
+      const fresh = await fetchInventory();
+      setInventory(fresh);
+      const product = fresh.find(p => p.codigo === codigo);
+      if (product && product.cantidad > 0) {
+        addToCart(product);
+        showNotification(`"${product.nombre}" añadido al carrito`, 'success');
+      }
+    } catch {
+      refreshInventory?.();
+    }
+  };
+
   // Global keyboard shortcuts + barcode scanner detection
   useEffect(() => {
+    const handleScannedCode = (code) => {
+      const product = inventory.find(p => p.codigo.toLowerCase() === code.toLowerCase());
+      if (product) {
+        addToCart(product);
+        setSearchTerm('');
+        showNotification(`"${product.nombre}" añadido al carrito`, 'success');
+      } else {
+        // Unknown barcode → offer to register it (code becomes the product's codigo)
+        setSearchTerm('');
+        setRegisterCode(code);
+        showNotification(`Código "${code}" no registrado — regístralo`, 'info');
+      }
+    };
+
     const handleKeyDown = (e) => {
+      // Suspend scanning while the register modal is open (user is filling the form)
+      if (registerCode !== null) return;
+
       const tag = document.activeElement?.tagName;
       const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
-      // Barcode scanner: accumulate printable chars arriving fast
+      // Barcode scanner: collect printable chars, resetting the buffer on any human-speed gap
       if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+        const now = Date.now();
+        if (now - lastKeyTime.current > HUMAN_GAP_MS) {
+          barcodeBuffer.current = '';
+          firstKeyTime.current = now;
+        }
         barcodeBuffer.current += e.key;
-        clearTimeout(barcodeTimer.current);
-        barcodeTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 120);
-      } else if (e.key === 'Enter' && barcodeBuffer.current.length >= 3) {
+        lastKeyTime.current = now;
+      } else if (e.key === 'Enter') {
         const code = barcodeBuffer.current.trim();
+        const burstMs = Date.now() - firstKeyTime.current;
+        const isScan = code.length >= 3 && burstMs < code.length * HUMAN_GAP_MS;
         barcodeBuffer.current = '';
-        clearTimeout(barcodeTimer.current);
-        // Only intercept if not focused on received-money or other functional inputs
-        if (document.activeElement !== receivedRef.current) {
-          const product = inventory.find(p => p.codigo.toLowerCase() === code.toLowerCase());
-          if (product) {
-            e.preventDefault();
-            addToCart(product);
-            setSearchTerm('');
-            showNotification(`"${product.nombre}" añadido al carrito`, 'success');
-            return;
-          }
+        // Only treat as a scan (never hijack the received-money / pay-on-Enter field)
+        if (isScan && document.activeElement !== receivedRef.current) {
+          e.preventDefault();
+          handleScannedCode(code);
+          return;
         }
       }
 
@@ -119,7 +152,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [searchTerm, selectedCategory, inventory, addToCart, showNotification]);
+  }, [searchTerm, selectedCategory, inventory, addToCart, showNotification, registerCode]);
 
   const handleRemoveFromCart = (id) => {
     removeFromCart(id);
@@ -235,7 +268,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
     <>
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-4 h-full">
         {/* Product panel */}
-        <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden flex-1 min-h-0 lg:h-full">
+        <FolderCard className="flex-1 min-h-0 lg:h-full">
 
           {/* Header */}
           <div className="px-3 py-2 lg:p-4 shrink-0">
@@ -247,7 +280,7 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                   <ChevronLeft size={18} />
                 </button>
               )}
-              <h2 className="text-base lg:text-xl font-bold text-gray-800 flex-1 truncate">
+              <h2 className="text-base lg:text-2xl font-bold text-gray-800 flex-1 truncate">
                 {isGridMode
                   ? 'Productos'
                   : isSearching
@@ -256,12 +289,6 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                       ? 'Sin categoría'
                       : selectedCategory ?? 'Productos'}
               </h2>
-              {!isGridMode && hasCategories && !isSearching && (
-                <button onClick={handleBack} className="flex items-center gap-1 text-xs text-[#008cc8] hover:underline shrink-0">
-                  <LayoutGrid size={13} />
-                  <span className="hidden lg:inline">Categorías</span>
-                </button>
-              )}
               <button onClick={openSearch} className="lg:hidden p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition">
                 <Search size={18} />
               </button>
@@ -300,19 +327,24 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
                   <button
                     key={cat.name}
                     onClick={() => handleCategorySelect(cat.name)}
-                    style={{ backgroundColor: cat.color }}
-                    className="aspect-square rounded-xl flex flex-col items-center justify-center p-2 text-white hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                    className="aspect-square rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col items-center justify-center gap-2 p-3 hover:border-accent-300 hover:shadow-md active:scale-95 transition-all"
                   >
-                    <span className="font-bold text-sm text-center leading-tight line-clamp-2">{cat.name}</span>
-                    <span className="text-white/70 text-xs mt-0.5">{cat.count}</span>
+                    <span className="w-10 h-10 rounded-xl bg-accent-500/10 text-accent-600 flex items-center justify-center font-bold text-lg">
+                      {cat.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="font-semibold text-sm text-ink text-center leading-tight line-clamp-2">{cat.name}</span>
+                    <span className="text-gray-400 text-xs">{cat.count}</span>
                   </button>
                 ))}
                 {uncategorizedCount > 0 && (
                   <button
                     onClick={() => handleCategorySelect('__none__')}
-                    className="aspect-square rounded-xl flex flex-col items-center justify-center p-2 bg-gray-400 text-white hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                    className="aspect-square rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col items-center justify-center gap-2 p-3 hover:border-accent-300 hover:shadow-md active:scale-95 transition-all"
                   >
-                    <span className="font-bold text-sm text-center leading-tight">Otros</span>
+                    <span className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center">
+                      <LayoutGrid size={18} />
+                    </span>
+                    <span className="font-semibold text-sm text-ink text-center leading-tight">Otros</span>
                   </button>
                 )}
               </div>
@@ -328,12 +360,13 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
               </div>
             )}
           </div>
-        </div>
+        </FolderCard>
 
         {/* Cart panel */}
-        <div className="bg-white rounded-lg shadow-lg flex flex-col overflow-hidden flex-1 min-h-0 lg:h-full">
-          <div className="py-1.5 px-1 shrink-0">
-            <div className="grid grid-cols-12 gap-2 bg-white px-3 py-1 rounded-lg">
+        <FolderCard side="right" mobileSide="left" className="flex-1 min-h-0 lg:h-full">
+          <div className="px-3 lg:px-4 pt-2 lg:pt-4 shrink-0">
+            <h2 className="text-base lg:text-2xl font-bold text-gray-800 mb-2 text-left lg:text-right">Carrito</h2>
+            <div className="grid grid-cols-12 gap-2 px-1 py-1">
               <div className="col-span-4 text-xs font-medium text-gray-500 uppercase">Nombre</div>
               <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</div>
               <div className="col-span-3 text-center text-xs font-medium text-gray-500 uppercase">Precio</div>
@@ -457,27 +490,13 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
               </div>
             </div>
 
-            {processingSale && (
-              <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-6 px-8">
-                <div className="text-center">
-                  <p className="text-white text-xl font-semibold">Procesando venta</p>
-                  <p className="text-white/60 text-sm mt-2">Por favor espera un momento</p>
-                </div>
-                <div className="flex gap-2">
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className="w-2 h-2 rounded-full bg-[#008cc8] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="flex items-center gap-2">
               <button
                 onClick={handleProcessSale}
                 disabled={cart.length === 0 || processingSale}
-                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${cart.length === 0 || processingSale
+                className={`flex-1 px-4 py-2.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${cart.length === 0 || processingSale
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-[#1d8a02] text-white hover:bg-[#006b00]'
+                    : 'bg-ink text-white hover:bg-ink-hover'
                   }`}
               >
                 Pagar
@@ -492,8 +511,50 @@ export default function PosBox({ inventory, setInventory, currentUser, showNotif
               </div>
             </div>
           </div>
-        </div>
+        </FolderCard>
       </div>
+
+      {/* Full-screen overlay — must live at the fragment root, NOT inside a
+          FolderCard: FolderCard applies a `filter`, which traps position:fixed
+          descendants to the card instead of the viewport. */}
+      {processingSale && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-6 px-8">
+          <div className="text-center">
+            <p className="text-white text-xl font-semibold">Procesando venta</p>
+            <p className="text-white/60 text-sm mt-2">Por favor espera un momento</p>
+          </div>
+          <div className="flex gap-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="w-2 h-2 rounded-full bg-accent-500 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {registerCode !== null && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8">
+            <div className="flex items-center justify-between p-5 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Registrar producto escaneado</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Código: <span className="font-mono">{registerCode}</span>
+                </p>
+              </div>
+              <button onClick={() => setRegisterCode(null)} className="p-2 hover:bg-gray-100 rounded-lg transition">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-2">
+              <InventoryForm
+                initialCodigo={registerCode}
+                onAdded={handleRegistered}
+                showNotification={showNotification}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {completedSale && (
         <PostSaleModal

@@ -4,6 +4,15 @@ from modules.inventory import InventoryManager
 from modules.inference import InferenceModel
 import time
 import os
+import logging
+
+# Configure application-wide logging once, at the entry point. Without this the
+# module loggers (e.g. modules.inventory) have no handler and their output is
+# dropped — which is how errors ended up going silent in the backend console.
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s %(levelname)-8s [%(name)s] %(message)s',
+)
 
 _sri_manager = None
 
@@ -324,7 +333,9 @@ def create_app():
     def get_sales_chart():
         try:
             period = request.args.get('period', 'today')
-            result = inventory.get_sales_chart(period)
+            custom_start = request.args.get('start_date')
+            custom_end = request.args.get('end_date')
+            result = inventory.get_sales_chart(period, custom_start, custom_end)
             return jsonify(result)
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader } from 'lucide-react';
+import { Spinner as Loader } from '@phosphor-icons/react';
 import { addProduct, fetchCategories } from '../../services/inventoryService';
 
 const EMPTY = {
@@ -17,8 +17,10 @@ function generateCode(nombre) {
   return `${prefix}${rand}`;
 }
 
-export default function InventoryForm({ onAdded, showNotification }) {
-  const [form, setForm] = useState(EMPTY);
+export default function InventoryForm({ onAdded, showNotification, initialCodigo = '' }) {
+  // When a barcode is scanned we seed the code and keep it fixed (no auto-generation)
+  const lockCodigo = Boolean(initialCodigo);
+  const [form, setForm] = useState(() => (initialCodigo ? { ...EMPTY, codigo: initialCodigo } : EMPTY));
   const [processing, setProcessing] = useState(false);
   const [categories, setCategories] = useState({});
 
@@ -27,10 +29,10 @@ export default function InventoryForm({ onAdded, showNotification }) {
   }, []);
 
   useEffect(() => {
-    if (form.nombre) {
+    if (!lockCodigo && form.nombre) {
       setForm(prev => ({ ...prev, codigo: generateCode(prev.nombre) }));
     }
-  }, [form.nombre]);
+  }, [form.nombre, lockCodigo]);
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -57,8 +59,9 @@ export default function InventoryForm({ onAdded, showNotification }) {
       });
       if (result.success) {
         showNotification(`Producto agregado!\nCódigo: ${form.codigo}`, 'success');
+        const createdCodigo = form.codigo;
         setForm(EMPTY);
-        onAdded?.();
+        onAdded?.(createdCodigo);
       } else {
         showNotification(`Error: ${result.message}`, 'error');
       }
@@ -80,6 +83,22 @@ export default function InventoryForm({ onAdded, showNotification }) {
     <div className="max-w-3xl mx-auto">
       <div className="bg-white rounded-lg shadow-lg p-6">
         <div className="space-y-4">
+
+          {lockCodigo && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Código de barras <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.codigo}
+                onChange={(e) => set('codigo', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008cc8] font-mono"
+                placeholder="Código escaneado"
+              />
+              <p className="text-xs text-gray-500 mt-1">Este es el código que leerá el escáner al vender.</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -265,7 +284,7 @@ export default function InventoryForm({ onAdded, showNotification }) {
             </div>
           )}
 
-          {form.nombre && (
+          {!lockCodigo && form.nombre && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <p className="text-sm text-gray-600">Código que se generará:</p>
               <p className="text-lg font-mono font-bold text-gray-800 mt-1">{form.codigo}</p>

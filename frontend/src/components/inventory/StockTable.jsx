@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Pencil, PlusCircle, X, Loader } from 'lucide-react';
+import { Pencil, PlusCircle, X, Spinner as Loader, Barcode } from '@phosphor-icons/react';
 import { updateProduct, adjustStock, fetchCategories } from '../../services/inventoryService';
 import { useEffect } from 'react';
 
@@ -12,7 +12,7 @@ function StockBadge({ cantidad, minStock }) {
 }
 
 // ── Edit Product Modal ────────────────────────────────────────────────────────
-function EditProductModal({ product, onClose, onSaved, showNotification }) {
+function EditProductModal({ product, onClose, onSaved, showNotification, printer = {} }) {
   const [form, setForm] = useState({
     nombre: product.nombre,
     costo: product.costo ?? '',
@@ -38,6 +38,19 @@ function EditProductModal({ product, onClose, onSaved, showNotification }) {
     const pct = (((parseFloat(price) - parseFloat(cost)) / parseFloat(cost)) * 100).toFixed(1);
     const abs = (parseFloat(price) - parseFloat(cost)).toFixed(2);
     return { pct, abs };
+  };
+
+  const handlePrintLabel = async () => {
+    try {
+      await printer.printLabel?.({
+        codigo: product.codigo,
+        nombre: form.nombre || product.nombre,
+        precio: parseFloat(form.precio1) || product.precio,
+      });
+      showNotification('Etiqueta enviada a la impresora', 'success');
+    } catch (e) {
+      showNotification(e.message || 'No se pudo imprimir la etiqueta', 'error');
+    }
   };
 
   const handleSave = async () => {
@@ -168,9 +181,17 @@ function EditProductModal({ product, onClose, onSaved, showNotification }) {
         </div>
 
         <div className="flex gap-3 p-5 border-t">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition text-sm">
+          <button onClick={onClose} className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition text-sm">
             Cancelar
           </button>
+          {printer.printLabel && (
+            <button onClick={handlePrintLabel} disabled={printer.printing}
+              title="Imprimir etiqueta con código de barras"
+              className="px-4 py-2.5 bg-gray-800 text-white rounded-lg font-semibold hover:bg-gray-900 transition flex items-center justify-center gap-2 text-sm disabled:opacity-60">
+              <Barcode size={16} />
+              <span className="hidden sm:inline">Etiqueta</span>
+            </button>
+          )}
           <button onClick={handleSave} disabled={processing}
             className="flex-1 px-4 py-2.5 bg-[#008cc8] text-white rounded-lg font-semibold hover:bg-[#057caf] transition flex items-center justify-center gap-2 text-sm disabled:opacity-60">
             {processing ? <Loader size={16} className="animate-spin" /> : 'Guardar cambios'}
@@ -270,7 +291,7 @@ function StockAdjustModal({ product, onClose, onSaved, showNotification }) {
 }
 
 // ── Main StockTable ───────────────────────────────────────────────────────────
-export default function StockTable({ inventory, onInventoryChange, showNotification }) {
+export default function StockTable({ inventory, onInventoryChange, showNotification, printer = {} }) {
   const [selectedCat, setSelectedCat] = useState('');
   const [selectedSub, setSelectedSub] = useState('');
   const [editingProduct, setEditingProduct] = useState(null);
@@ -545,6 +566,7 @@ export default function StockTable({ inventory, onInventoryChange, showNotificat
           onClose={() => setEditingProduct(null)}
           onSaved={handleSaved}
           showNotification={showNotification}
+          printer={printer}
         />
       )}
 

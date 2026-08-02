@@ -1,6 +1,8 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import hashlib
+import logging
+import traceback
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import uuid
@@ -9,6 +11,15 @@ from decimal import Decimal, ROUND_HALF_UP
 from babel.dates import format_date
 
 BUSINESS_TZ = ZoneInfo("America/Guayaquil")
+
+logger = logging.getLogger(__name__)
+
+
+def _pct_delta(cur, prev):
+    """Percentage change of `cur` vs `prev`. None when there's no basis to compare."""
+    if not prev:
+        return None
+    return round((cur - prev) / prev * 100)
 
 
 class InventoryManager:
@@ -515,7 +526,7 @@ class InventoryManager:
         except Exception as e:
             return {'error': str(e)}
 
-    def get_sales_chart(self, period='today'):
+    def get_sales_chart(self, period='today', custom_start=None, custom_end=None):
         """Returns time-series sales data for charts (revenue + sales count per bucket)"""
         from datetime import datetime, timedelta
 
@@ -569,6 +580,57 @@ class InventoryManager:
             labels = [(start + timedelta(days=i)).strftime('%d/%m') for i in range(days_count)]
             revenue = [round(buckets[d]['revenue'], 2) for d in day_dates]
             counts = [len(buckets[d]['sales']) for d in day_dates]
+
+        elif period == 'custom' and custom_start and custom_end:
+            start = datetime.strptime(custom_start, '%Y-%m-%d')
+            end = datetime.strptime(custom_end, '%Y-%m-%d')
+            if end < start:
+                start, end = end, start
+            records = self.get_sales_history(date_from=start.strftime('%Y-%m-%d'),
+                                             date_to=end.strftime('%Y-%m-%d'))
+            span_days = (end - start).days + 1
+
+            # Adaptive granularity: hourly for a single day, daily up to ~2 months,
+            # weekly beyond — so the x-axis never gets unreadably dense.
+            if span_days <= 1:
+                buckets = {str(h).zfill(2): {'revenue': 0.0, 'sales': set()} for h in range(24)}
+                for r in records:
+                    hora = str(r.get('Hora', ''))
+                    h = hora.split(':')[0].zfill(2) if hora else None
+                    if h and h in buckets:
+                        buckets[h]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                        buckets[h]['sales'].add(str(r.get('VentaID', '')))
+                labels = [f"{h}:00" for h in range(24)]
+                revenue = [round(buckets[str(h).zfill(2)]['revenue'], 2) for h in range(24)]
+                counts = [len(buckets[str(h).zfill(2)]['sales']) for h in range(24)]
+
+            elif span_days <= 62:
+                day_dates = [(start + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(span_days)]
+                buckets = {d: {'revenue': 0.0, 'sales': set()} for d in day_dates}
+                for r in records:
+                    d = str(r.get('Fecha', ''))
+                    if d in buckets:
+                        buckets[d]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                        buckets[d]['sales'].add(str(r.get('VentaID', '')))
+                labels = [(start + timedelta(days=i)).strftime('%d/%m') for i in range(span_days)]
+                revenue = [round(buckets[d]['revenue'], 2) for d in day_dates]
+                counts = [len(buckets[d]['sales']) for d in day_dates]
+
+            else:
+                num_weeks = (span_days + 6) // 7
+                week_buckets = [{'revenue': 0.0, 'sales': set()} for _ in range(num_weeks)]
+                for r in records:
+                    try:
+                        d = datetime.strptime(str(r.get('Fecha', '')), '%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        continue
+                    idx = (d - start).days // 7
+                    if 0 <= idx < num_weeks:
+                        week_buckets[idx]['revenue'] += float(r.get('Subtotal', 0) or 0)
+                        week_buckets[idx]['sales'].add(str(r.get('VentaID', '')))
+                labels = [(start + timedelta(days=i * 7)).strftime('%d/%m') for i in range(num_weeks)]
+                revenue = [round(b['revenue'], 2) for b in week_buckets]
+                counts = [len(b['sales']) for b in week_buckets]
 
         else:
             return {'success': False, 'error': 'Período no válido'}
@@ -737,6 +799,45 @@ class InventoryManager:
 
         return alerts
 
+    def _period_totals(self, data_rows, headers, costs_dict, start_d, end_d):
+        """Top-line totals for a date range (used for the previous-period comparison).
+
+        Reuses the already-loaded sheet rows and cost map, so it adds no extra
+        Google Sheets reads. Returns floats ready for trend math.
+        """
+        ingresos = Decimal("0")
+        costos = Decimal("0")
+        unidades = Decimal("0")
+        ventas = 0
+        for row in data_rows:
+            date_str = row[1] if len(row) > 1 else ''
+            try:
+                d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                continue
+            if not (start_d <= d <= end_d):
+                continue
+            rec = dict(zip(headers, row))
+            try:
+                cantidad = Decimal(str(rec.get('Cantidad', 0) or 0))
+                precio = Decimal(str(rec.get('PrecioUnitario', 0) or 0))
+                costo_u = Decimal(str(costs_dict.get(rec.get('Codigo', ''), 0) or 0))
+            except Exception:
+                continue
+            ingresos += precio * cantidad
+            costos += costo_u * cantidad
+            unidades += cantidad
+            ventas += 1
+        utilidad = ingresos - costos
+        return {
+            'ingresos': float(round(ingresos, 2)),
+            'utilidad': float(round(utilidad, 2)),
+            'margen': float(round(utilidad / ingresos * 100, 2)) if ingresos > 0 else 0.0,
+            'ventas': ventas,
+            'unidades': float(unidades),
+            'ticket': float(round(ingresos / ventas, 2)) if ventas else 0.0,
+        }
+
     def get_profit_analysis(self, period='today', custom_start=None, custom_end=None):
         """Analiza las utilidades para cierre de caja por período"""
         try:
@@ -745,13 +846,13 @@ class InventoryManager:
             now = datetime.now(BUSINESS_TZ)
 
             if period == 'today':
-                print("Filtrando ventas de hoy")
+                logger.debug("Filtrando ventas de hoy")
                 start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"{format_date(now, format='full', locale='es_ES')}"
 
             elif period == 'week':
-                print("Filtrando ventas de la semana")
+                logger.debug("Filtrando ventas de la semana")
                 start_date = now - timedelta(days=now.weekday())
                 start_date = start_date.replace(hour=0, minute=0, second=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -760,13 +861,13 @@ class InventoryManager:
                     f"{format_date(end_date, 'd MMMM y', locale='es_ES')}")
 
             elif period == 'month':
-                print("Filtrando ventas del mes")
+                logger.debug("Filtrando ventas del mes")
                 start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
                 period_label = f"{format_date(start_date, 'MMMM y', locale='es_ES')}"
 
             elif period == 'custom' and custom_start and custom_end:
-                print("Filtrando ventas en rango personalizado")
+                logger.debug("Filtrando ventas en rango personalizado")
                 start_date = datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
                 end_date = datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=BUSINESS_TZ)
                 period_label = (
@@ -775,21 +876,52 @@ class InventoryManager:
             else:
                 return {'success': False, 'error': 'Período no válido'}
 
-            print(f"Periodo: {period_label}")
-            date_col = self.sheet_sales.col_values(2)[1:]
-            headers = self.sheet_sales.row_values(1)
+            logger.info(
+                "get_profit_analysis período=%s rango=[%s .. %s] etiqueta=%r",
+                period, start_date.date(), end_date.date(), period_label,
+            )
 
-            matching_rows = []
-            for i, date_str in enumerate(date_col):
+            # Single bulk read of the whole sheet, then filter in memory.
+            #
+            # The previous approach built one A1 range per matching row and passed them
+            # all to values_batch_get(). That call encodes every range as a query
+            # parameter, so for a full month the request URL exceeded Google's size
+            # limit and the API rejected it — which surfaced here as a silent failure
+            # (it worked for shorter ranges like 01–24 that produced fewer rows).
+            # A single get_all_values() has no such ceiling and is also fewer requests.
+            try:
+                all_values = self.sheet_sales.get_all_values()
+            except Exception:
+                logger.exception("Fallo al leer la hoja de Ventas (%s)", self.sheet_sales.title)
+                return {
+                    'success': False,
+                    'error': 'No se pudo leer la hoja de Ventas',
+                    'traceback': traceback.format_exc(),
+                }
+
+            headers = all_values[0] if all_values else []
+            data_rows = all_values[1:] if len(all_values) > 1 else []
+            logger.info("Ventas en hoja: %d filas de datos", len(data_rows))
+
+            filtered_sales = []
+            bad_dates = 0
+            for row in data_rows:
+                date_str = row[1] if len(row) > 1 else ''
                 try:
                     sale_date = datetime.strptime(date_str, '%Y-%m-%d').replace(tzinfo=BUSINESS_TZ)
-                    if start_date.date() <= sale_date.date() <= end_date.date():
-                        matching_rows.append(i + 2)
-                except Exception:
+                except (ValueError, TypeError):
+                    bad_dates += 1
                     continue
+                if start_date.date() <= sale_date.date() <= end_date.date():
+                    filtered_sales.append(dict(zip(headers, row)))
 
-            if not matching_rows:
-                print("Periodo de fecha no encontrado en lista de ventas")
+            logger.info(
+                "Filas coincidentes: %d (fechas ilegibles omitidas: %d)",
+                len(filtered_sales), bad_dates,
+            )
+
+            if not filtered_sales:
+                logger.info("Sin ventas en el período seleccionado")
                 return {
                     'success': True,
                     'data': {
@@ -803,19 +935,6 @@ class InventoryManager:
                     }
                 }
 
-            col_letter = chr(64 + len(headers))
-            sheet_name = self.sheet_sales.title
-            ranges = [f"'{sheet_name}'!A{row}:{col_letter}{row}" for row in matching_rows]
-
-            batch_data = self.sheet_sales.spreadsheet.values_batch_get(ranges)
-
-            filtered_sales = []
-            for value_range in batch_data.get('valueRanges', []):
-                values = value_range.get('values', [])
-                if values:
-                    record = dict(zip(headers, values[0]))
-                    filtered_sales.append(record)
-
             inventory = self.sheet_inventory.get_all_records()
             costs_dict = {item['Codigo']: float(item.get('Costo', 0)) for item in inventory}
 
@@ -827,62 +946,81 @@ class InventoryManager:
             vendedores_stats = {}
             metodo_pago_stats = {}
 
-            for sale in filtered_sales:
-                codigo = sale.get('Codigo', '')
-                cantidad = Decimal(str(sale.get('Cantidad', 0)))
-                precio_venta = Decimal(str(sale.get('PrecioUnitario', 0)))
-                costo_unitario = Decimal(str(costs_dict.get(codigo, 0)))
-                vendedor = sale.get('Vendedor', 'Sistema')
-                metodo_pago = (sale.get('MetodoPago', '') or 'efectivo').lower().strip()
+            processed_sales = 0
+            skipped_sales = 0
+            for row_idx, sale in enumerate(filtered_sales, start=1):
+                try:
+                    codigo = sale.get('Codigo', '')
+                    cantidad = Decimal(str(sale.get('Cantidad', 0) or 0))
+                    precio_venta = Decimal(str(sale.get('PrecioUnitario', 0) or 0))
+                    costo_unitario = Decimal(str(costs_dict.get(codigo, 0) or 0))
+                    vendedor = sale.get('Vendedor', 'Sistema')
+                    metodo_pago = (sale.get('MetodoPago', '') or 'efectivo').lower().strip()
 
-                ingreso = (precio_venta * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
-                costo = (costo_unitario * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
-                utilidad = (ingreso - costo).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    ingreso = (precio_venta * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
+                    costo = (costo_unitario * cantidad).quantize(Decimal("0.001"), ROUND_HALF_UP)
+                    utilidad = (ingreso - costo).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
-                total_ingresos += ingreso
-                total_costos += costo
-                total_unidades += cantidad
+                    total_ingresos += ingreso
+                    total_costos += costo
+                    total_unidades += cantidad
 
-                ventas_detalle.append({
-                    'fecha': sale.get('Fecha', ''),
-                    'hora': sale.get('Hora', ''),
-                    'producto': sale.get('Nombre', ''),
-                    'cantidad': float(cantidad),
-                    'precio_venta': float(precio_venta),
-                    'costo_unitario': float(costo_unitario),
-                    'ingreso': float(ingreso),
-                    'costo': float(costo),
-                    'utilidad': float(utilidad),
-                    'vendedor': vendedor
-                })
-
-                if codigo not in productos_vendidos:
-                    productos_vendidos[codigo] = {
+                    ventas_detalle.append({
+                        'fecha': sale.get('Fecha', ''),
+                        'hora': sale.get('Hora', ''),
                         'producto': sale.get('Nombre', ''),
-                        'codigo': codigo,
-                        'cantidad': Decimal("0"),
-                        'ingresos': Decimal("0"),
-                        'costos': Decimal("0"),
-                        'utilidad': Decimal("0")
-                    }
-                productos_vendidos[codigo]['cantidad'] += cantidad
-                productos_vendidos[codigo]['ingresos'] += ingreso
-                productos_vendidos[codigo]['costos'] += costo
-                productos_vendidos[codigo]['utilidad'] += utilidad
+                        'cantidad': float(cantidad),
+                        'precio_venta': float(precio_venta),
+                        'costo_unitario': float(costo_unitario),
+                        'ingreso': float(ingreso),
+                        'costo': float(costo),
+                        'utilidad': float(utilidad),
+                        'vendedor': vendedor
+                    })
 
-                if vendedor not in vendedores_stats:
-                    vendedores_stats[vendedor] = {'vendedor': vendedor, 'ventas': 0, 'ingresos': Decimal("0"), 'utilidad': Decimal("0")}
-                vendedores_stats[vendedor]['ventas'] += 1
-                vendedores_stats[vendedor]['ingresos'] += ingreso
-                vendedores_stats[vendedor]['utilidad'] += utilidad
+                    if codigo not in productos_vendidos:
+                        productos_vendidos[codigo] = {
+                            'producto': sale.get('Nombre', ''),
+                            'codigo': codigo,
+                            'cantidad': Decimal("0"),
+                            'ingresos': Decimal("0"),
+                            'costos': Decimal("0"),
+                            'utilidad': Decimal("0")
+                        }
+                    productos_vendidos[codigo]['cantidad'] += cantidad
+                    productos_vendidos[codigo]['ingresos'] += ingreso
+                    productos_vendidos[codigo]['costos'] += costo
+                    productos_vendidos[codigo]['utilidad'] += utilidad
 
-                if metodo_pago not in metodo_pago_stats:
-                    metodo_pago_stats[metodo_pago] = {'metodo': metodo_pago, 'transacciones': 0, 'ingresos': Decimal("0")}
-                metodo_pago_stats[metodo_pago]['transacciones'] += 1
-                metodo_pago_stats[metodo_pago]['ingresos'] += ingreso
+                    if vendedor not in vendedores_stats:
+                        vendedores_stats[vendedor] = {'vendedor': vendedor, 'ventas': 0, 'ingresos': Decimal("0"), 'utilidad': Decimal("0")}
+                    vendedores_stats[vendedor]['ventas'] += 1
+                    vendedores_stats[vendedor]['ingresos'] += ingreso
+                    vendedores_stats[vendedor]['utilidad'] += utilidad
+
+                    if metodo_pago not in metodo_pago_stats:
+                        metodo_pago_stats[metodo_pago] = {'metodo': metodo_pago, 'transacciones': 0, 'ingresos': Decimal("0")}
+                    metodo_pago_stats[metodo_pago]['transacciones'] += 1
+                    metodo_pago_stats[metodo_pago]['ingresos'] += ingreso
+
+                    processed_sales += 1
+                except Exception:
+                    # One malformed row (e.g. a non-numeric Cantidad/PrecioUnitario like
+                    # "1,50") must not abort the whole cierre. Log the offending record
+                    # with its position so it can be traced and fixed in the sheet.
+                    skipped_sales += 1
+                    logger.exception("Error procesando venta #%d (omitida): %r", row_idx, sale)
+                    continue
+
+            if skipped_sales:
+                logger.warning("%d de %d ventas no se pudieron procesar y fueron omitidas",
+                                skipped_sales, len(filtered_sales))
 
             utilidad_neta = (total_ingresos - total_costos).quantize(Decimal("0.01"), ROUND_HALF_UP)
             margen_total = (utilidad_neta / total_ingresos * 100).quantize(Decimal("0.01"), ROUND_HALF_UP) if total_ingresos > 0 else Decimal("0.00")
+
+            logger.info("Utilidad neta del período: %s (ventas procesadas: %d)",
+                        utilidad_neta, processed_sales)
 
             productos_list = sorted(
                 [{**p, 'cantidad': float(p['cantidad']), 'ingresos': float(p['ingresos']),
@@ -902,27 +1040,49 @@ class InventoryManager:
                 for m in sorted(metodo_pago_stats.values(), key=lambda x: x['ingresos'], reverse=True)
             ]
 
-            print("Análisis finalizado exitosamente")
+            # ── Trend vs the immediately-preceding equal-length window ──────────
+            cur_ingresos = float(round(total_ingresos, 2))
+            cur_ticket = float(round(total_ingresos / processed_sales, 2)) if processed_sales else 0
+            span = (end_date.date() - start_date.date()).days
+            prev_end = start_date.date() - timedelta(days=1)
+            prev_start = prev_end - timedelta(days=span)
+            prev = self._period_totals(data_rows, headers, costs_dict, prev_start, prev_end)
+            logger.info("Período anterior [%s .. %s]: ingresos=%.2f", prev_start, prev_end, prev['ingresos'])
+
+            trends = {
+                'revenue_trend': _pct_delta(cur_ingresos, prev['ingresos']),
+                'utilidad_trend': _pct_delta(float(round(utilidad_neta, 2)), prev['utilidad']),
+                'margen_trend': round(float(margen_total) - prev['margen']) if prev['ingresos'] > 0 else None,
+                'ventas_trend': _pct_delta(processed_sales, prev['ventas']),
+                'unidades_trend': _pct_delta(float(total_unidades), prev['unidades']),
+                'ticket_trend': _pct_delta(cur_ticket, prev['ticket']),
+            }
+
+            logger.info("Análisis finalizado exitosamente (%d ventas)", processed_sales)
             return {
                 'success': True,
                 'data': {
                     'periodo': period_label,
-                    'total_ingresos': float(round(total_ingresos, 2)),
+                    'total_ingresos': cur_ingresos,
                     'total_costos': float(round(total_costos, 2)),
                     'utilidad_neta': float(round(utilidad_neta, 2)),
                     'margen_total': float(round(margen_total, 2)),
-                    'total_ventas': len(filtered_sales),
+                    'total_ventas': processed_sales,
                     'total_unidades': float(total_unidades),
-                    'ticket_promedio': float(round(total_ingresos / len(filtered_sales), 2)) if filtered_sales else 0,
+                    'ticket_promedio': cur_ticket,
                     'productos_vendidos': productos_list,
                     'vendedores': vendedores_list,
                     'ventas_detalle': ventas_detalle,
                     'metodo_pago_breakdown': metodo_pago_list,
+                    **trends,
                 }
             }
 
         except Exception as e:
-            import traceback
+            # Log the full traceback here so it lands in the backend console/log,
+            # not only in the JSON response the caller may discard.
+            logger.exception("get_profit_analysis falló (period=%s, %s..%s)",
+                             period, custom_start, custom_end)
             return {'success': False, 'error': str(e), 'traceback': traceback.format_exc()}
 
     def export_cierre_caja(self, period='today', custom_start=None, custom_end=None):

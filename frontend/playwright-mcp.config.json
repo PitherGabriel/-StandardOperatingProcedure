@@ -1,0 +1,17 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true
+    },
+    "contextOptions": {
+      "viewport": { "width": 1440, "height": 900 },
+      "locale": "es-EC"
+    }
+  },
+  "timeouts": {
+    "action": 5000,
+    "navigation": 30000
+  },
+  "outputDir": "./.playwright-mcp"
+}

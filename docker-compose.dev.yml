@@ -32,5 +32,6 @@ services:
       - VITE_PRINT_BRIDGE_URL=${VITE_PRINT_BRIDGE_URL}
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public  # live-mount static assets (logos, etc.)
     expose:
       - "5173"

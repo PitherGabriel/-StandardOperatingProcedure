@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle, Printer, X, FileText, Loader } from 'lucide-react';
+import { CheckCircle, Printer, X, FileText, Spinner as Loader } from '@phosphor-icons/react';
 import ReceiptPreview from './ReceiptPreview';
 import { processInvoicedSale } from '../../services/salesService';
 

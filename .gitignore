@@ -216,3 +216,9 @@ certificado.p12
 # Executables
 *.exe
 
+
+# Playwright MCP screenshot output
+.playwright-mcp/
+
+# UI/UX examples 
+pictures    

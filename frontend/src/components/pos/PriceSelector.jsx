@@ -5,7 +5,7 @@ import {
   ListboxOption,
   Transition
 } from '@headlessui/react'
-import { ChevronDown } from 'lucide-react';
+import { CaretDown as ChevronDown } from '@phosphor-icons/react';
 import { Fragment } from 'react'
 
 export default function PriceSelector({ item, hasTwoPrices, onChange }) {
